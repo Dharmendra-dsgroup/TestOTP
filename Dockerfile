@@ -37,14 +37,14 @@ COPY --from=builder --chown=remix:nodejs /app/shopify.app.toml ./shopify.app.tom
 
 USER remix
 
-# Remix serve listens on 3000 by default; Fly.io expects 8080
-ENV PORT=8080
 ENV NODE_ENV=production
+# PORT is injected by Render/Fly at runtime — do not hardcode here
 
-EXPOSE 8080
+EXPOSE 3000
 
-# Health check — Fly.io also checks /api/health via fly.toml
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:8080/api/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD wget -qO- http://localhost:${PORT:-3000}/api/health || exit 1
 
-CMD ["node", "./build/server/index.js"]
+# remix-serve starts Express and binds to process.env.PORT (set by Render/Fly)
+CMD ["node_modules/.bin/remix-serve", "./build/server/index.js"]
