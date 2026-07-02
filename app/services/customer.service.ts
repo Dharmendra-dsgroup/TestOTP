@@ -192,7 +192,6 @@ export class CustomerService {
       return serviceFailure("Failed to block customer", 500);
     }
   }
-}
 
   // ─── Admin GraphQL: find-or-create + login URL ──────────────────────────────
 
