@@ -27,9 +27,9 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 # Copy only what's needed to run
+# Note: static assets are in build/client/ (Remix Vite output), not a separate public/ dir
 COPY --from=builder --chown=remix:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=remix:nodejs /app/build ./build
-COPY --from=builder --chown=remix:nodejs /app/public ./public
 COPY --from=builder --chown=remix:nodejs /app/package.json ./package.json
 
 # Copy shopify config files needed at runtime
