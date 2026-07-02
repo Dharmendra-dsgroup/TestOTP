@@ -25,7 +25,9 @@ function buildRedisOptions(): RedisOptions {
     lazyConnect: true,
     connectTimeout: 10_000,
     commandTimeout: 5_000,
-    ...(isTls ? { tls: {} } : {}),
+    // rejectUnauthorized:false needed on Alpine Linux — its CA bundle
+    // doesn't include all intermediates required by Upstash's cert chain
+    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
     reconnectOnError: (err) => {
       const retriable = ["READONLY", "ECONNREFUSED", "ECONNRESET"];
       return retriable.some((msg) => err.message.includes(msg));
