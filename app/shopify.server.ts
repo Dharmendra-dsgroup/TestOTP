@@ -92,9 +92,7 @@ const shopify = shopifyApp({
       }
     },
   },
-  future: {
-    unstable_newEmbeddedAuthStrategy: true,
-  },
+  future: {},
 });
 
 export default shopify;
