@@ -17,12 +17,15 @@ if (!global.__redis) {
 }
 
 function buildRedisOptions(): RedisOptions {
+  const isTls = env.REDIS_URL.startsWith("rediss://");
+
   const base: RedisOptions = {
     maxRetriesPerRequest: 3,
-    enableReadyCheck: true,
+    enableReadyCheck: false,   // must be false for Upstash serverless Redis
     lazyConnect: true,
     connectTimeout: 10_000,
     commandTimeout: 5_000,
+    ...(isTls ? { tls: {} } : {}),
     reconnectOnError: (err) => {
       const retriable = ["READONLY", "ECONNREFUSED", "ECONNRESET"];
       return retriable.some((msg) => err.message.includes(msg));

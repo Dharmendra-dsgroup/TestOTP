@@ -41,7 +41,7 @@ interface HealthResponse {
 }
 
 export const loader = async (_args: LoaderFunctionArgs) => {
-  const checks: HealthResponse["checks"] = {
+  const checks: Record<string, string> = {
     mongodb: "fail",
     redis: "fail",
   };
@@ -50,22 +50,24 @@ export const loader = async (_args: LoaderFunctionArgs) => {
   try {
     await connectToDatabase();
     checks.mongodb = "ok";
-  } catch {
-    checks.mongodb = "fail";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    checks.mongodb = `fail: ${msg.slice(0, 200)}`;
   }
 
   // Check Redis
   try {
     const redisOk = await pingRedis();
-    checks.redis = redisOk ? "ok" : "fail";
-  } catch {
-    checks.redis = "fail";
+    checks.redis = redisOk ? "ok" : "fail: PING returned non-PONG";
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    checks.redis = `fail: ${msg.slice(0, 200)}`;
   }
 
-  const allOk = Object.values(checks).every((v) => v === "ok");
+  const allOk = checks.mongodb === "ok" && checks.redis === "ok";
   const status = allOk ? "ok" : "degraded";
 
-  const body: HealthResponse = {
+  const body = {
     status,
     version: process.env.APP_VERSION ?? "1.0.0",
     uptime: Math.floor(process.uptime()),
