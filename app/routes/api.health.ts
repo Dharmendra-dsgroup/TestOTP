@@ -61,7 +61,7 @@ export const loader = async (_args: LoaderFunctionArgs) => {
     checks.redis = redisOk ? "ok" : "fail: PING returned non-PONG";
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    checks.redis = `fail: ${msg.slice(0, 200)}`;
+    checks.redis = `fail: ${msg.slice(0, 300)}`;
   }
 
   const allOk = checks.mongodb === "ok" && checks.redis === "ok";

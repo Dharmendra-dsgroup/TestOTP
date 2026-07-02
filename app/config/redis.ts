@@ -92,16 +92,15 @@ export async function disconnectRedis(): Promise<void> {
 }
 
 export async function pingRedis(): Promise<boolean> {
-  try {
-    const client = getRedisClient();
-    if (client.status === "wait") {
-      await client.connect();
-    }
-    const response = await client.ping();
-    return response === "PONG";
-  } catch {
-    return false;
+  const client = getRedisClient();
+  if (client.status === "wait") {
+    await client.connect();
   }
+  const response = await client.ping();
+  if (response !== "PONG") {
+    throw new Error(`PING returned: ${JSON.stringify(response)}, client status: ${client.status}`);
+  }
+  return true;
 }
 
 export default getRedisClient;
