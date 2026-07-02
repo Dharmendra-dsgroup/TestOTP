@@ -1,0 +1,18 @@
+{
+  "t": {
+    "block_name": "OTP Login",
+    "button_text_label": "Login button text",
+    "button_text_default": "Login with OTP",
+    "channel_label": "Login channel",
+    "channel_sms": "SMS",
+    "channel_email": "Email",
+    "otp_length_label": "OTP length",
+    "widget_type_label": "Widget type",
+    "widget_popup": "Popup",
+    "widget_inline": "Inline",
+    "redirect_url_label": "Redirect after login",
+    "brand_color_label": "Brand color",
+    "dark_mode_label": "Dark mode",
+    "show_on_account_page_label": "Replace account login form"
+  }
+}

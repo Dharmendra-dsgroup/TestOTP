@@ -1,0 +1,70 @@
+# fly.toml — Fly.io deployment configuration for OTP Login Pro
+# Deploy: fly deploy
+# Logs:   fly logs
+# Scale:  fly scale count 2 --region iad
+
+app = "otp-login-pro"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+
+# Web process — Remix server
+[processes]
+  app = "node ./build/server/index.js"
+  worker = "node ./build/worker/start-workers.js"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "10s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/health"
+    protocol = "http"
+    tls_skip_verify = false
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[vm]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Auto-scaling: keep 1 machine always running, scale to 3 under load
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

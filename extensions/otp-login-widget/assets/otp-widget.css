@@ -1,0 +1,317 @@
+/* OTP Login Pro — Widget Styles
+ * All selectors are namespaced under .otp-lp- to avoid theme conflicts.
+ * Brand color is applied via CSS custom properties set by the JS widget.
+ */
+
+:root {
+  --otp-lp-primary: #3B82F6;
+  --otp-lp-primary-hover: #2563EB;
+  --otp-lp-radius: 8px;
+  --otp-lp-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  --otp-lp-font: inherit;
+  --otp-lp-bg: #ffffff;
+  --otp-lp-surface: #f8fafc;
+  --otp-lp-border: #e2e8f0;
+  --otp-lp-text: #1e293b;
+  --otp-lp-muted: #64748b;
+  --otp-lp-error: #ef4444;
+  --otp-lp-success: #22c55e;
+}
+
+/* Dark mode override */
+.otp-lp-dark {
+  --otp-lp-bg: #1e293b;
+  --otp-lp-surface: #0f172a;
+  --otp-lp-border: #334155;
+  --otp-lp-text: #f1f5f9;
+  --otp-lp-muted: #94a3b8;
+}
+
+/* ── Trigger Button ─────────────────────────────────────────────────────── */
+.otp-lp-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background-color: var(--otp-lp-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--otp-lp-radius);
+  font-family: var(--otp-lp-font);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  width: 100%;
+}
+.otp-lp-trigger:hover { background-color: var(--otp-lp-primary-hover); }
+.otp-lp-trigger:active { transform: scale(0.98); }
+.otp-lp-trigger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Popup Overlay ──────────────────────────────────────────────────────── */
+.otp-lp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  padding: 16px;
+}
+.otp-lp-overlay.otp-lp-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ── Modal / Card ───────────────────────────────────────────────────────── */
+.otp-lp-modal {
+  background: var(--otp-lp-bg);
+  border-radius: 12px;
+  box-shadow: var(--otp-lp-shadow);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  transform: translateY(8px);
+  transition: transform 0.2s ease;
+}
+.otp-lp-overlay.otp-lp-open .otp-lp-modal {
+  transform: translateY(0);
+}
+
+/* Inline widget */
+.otp-lp-inline .otp-lp-modal {
+  max-width: 100%;
+  box-shadow: none;
+  padding: 24px 0;
+}
+
+/* ── Close Button ───────────────────────────────────────────────────────── */
+.otp-lp-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--otp-lp-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.otp-lp-close:hover { color: var(--otp-lp-text); }
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+.otp-lp-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--otp-lp-text);
+  margin: 0 0 4px;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-subtitle {
+  font-size: 14px;
+  color: var(--otp-lp-muted);
+  margin: 0 0 20px;
+  line-height: 1.5;
+  font-family: var(--otp-lp-font);
+}
+
+/* ── Form Elements ──────────────────────────────────────────────────────── */
+.otp-lp-field {
+  margin-bottom: 16px;
+}
+.otp-lp-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--otp-lp-text);
+  margin-bottom: 6px;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-input-wrap {
+  display: flex;
+  border: 1.5px solid var(--otp-lp-border);
+  border-radius: var(--otp-lp-radius);
+  overflow: hidden;
+  background: var(--otp-lp-bg);
+  transition: border-color 0.2s;
+}
+.otp-lp-input-wrap:focus-within {
+  border-color: var(--otp-lp-primary);
+}
+.otp-lp-dial-code {
+  padding: 0 12px;
+  background: var(--otp-lp-surface);
+  color: var(--otp-lp-text);
+  font-size: 14px;
+  font-weight: 600;
+  border-right: 1.5px solid var(--otp-lp-border);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  user-select: none;
+}
+.otp-lp-input {
+  flex: 1;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--otp-lp-text);
+  background: transparent;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-input::placeholder { color: var(--otp-lp-muted); }
+
+/* ── OTP Digit Inputs ───────────────────────────────────────────────────── */
+.otp-lp-digits {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.otp-lp-digit {
+  width: 48px;
+  height: 56px;
+  border: 1.5px solid var(--otp-lp-border);
+  border-radius: var(--otp-lp-radius);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--otp-lp-text);
+  background: var(--otp-lp-bg);
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-digit:focus { border-color: var(--otp-lp-primary); }
+.otp-lp-digit.otp-lp-filled { border-color: var(--otp-lp-primary); }
+
+/* 8-digit OTP: smaller boxes */
+.otp-lp-digits[data-length="8"] .otp-lp-digit {
+  width: 38px;
+  height: 50px;
+  font-size: 18px;
+}
+
+/* ── Primary Button ─────────────────────────────────────────────────────── */
+.otp-lp-btn {
+  width: 100%;
+  padding: 13px;
+  background: var(--otp-lp-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--otp-lp-radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+  font-family: var(--otp-lp-font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.otp-lp-btn:hover { background: var(--otp-lp-primary-hover); }
+.otp-lp-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Error & Messages ───────────────────────────────────────────────────── */
+.otp-lp-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: var(--otp-lp-error);
+  border-radius: var(--otp-lp-radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  font-family: var(--otp-lp-font);
+  display: none;
+}
+.otp-lp-error.otp-lp-visible { display: block; }
+
+.otp-lp-dark .otp-lp-error {
+  background: #450a0a;
+  border-color: #7f1d1d;
+}
+
+/* ── Resend Row ─────────────────────────────────────────────────────────── */
+.otp-lp-resend-row {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--otp-lp-muted);
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-resend-btn {
+  background: none;
+  border: none;
+  color: var(--otp-lp-primary);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-resend-btn:disabled { color: var(--otp-lp-muted); cursor: not-allowed; }
+
+/* ── Success State ──────────────────────────────────────────────────────── */
+.otp-lp-success-icon {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.otp-lp-success-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--otp-lp-success);
+  text-align: center;
+  margin-bottom: 8px;
+  font-family: var(--otp-lp-font);
+}
+.otp-lp-success-msg {
+  font-size: 14px;
+  color: var(--otp-lp-muted);
+  text-align: center;
+  font-family: var(--otp-lp-font);
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────────── */
+.otp-lp-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: otp-lp-spin 0.7s linear infinite;
+}
+@keyframes otp-lp-spin { to { transform: rotate(360deg); } }
+
+/* ── Back Link ──────────────────────────────────────────────────────────── */
+.otp-lp-back {
+  background: none;
+  border: none;
+  color: var(--otp-lp-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 12px;
+  display: block;
+  text-align: center;
+  font-family: var(--otp-lp-font);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .otp-lp-modal { padding: 24px 18px; }
+  .otp-lp-digit { width: 40px; height: 50px; font-size: 20px; }
+  .otp-lp-digits[data-length="8"] .otp-lp-digit { width: 32px; height: 44px; font-size: 16px; }
+}

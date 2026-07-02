@@ -1,0 +1,7 @@
+api_version = "2025-01"
+
+[[extensions]]
+name = "OTP Login Widget"
+handle = "otp-login-widget"
+uid = "b4d3d472-8b31-c1b6-4e34-179b722227907a876fbb"
+type = "theme"

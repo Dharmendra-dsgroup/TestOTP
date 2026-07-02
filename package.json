@@ -1,0 +1,62 @@
+{
+  "name": "otp-login-pro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Production-grade Shopify OTP Login app with SMS/Email verification",
+  "scripts": {
+    "build": "remix vite:build",
+    "dev": "shopify app dev",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "config:link": "shopify app config link",
+    "config:use": "shopify app config use",
+    "env": "shopify app env",
+    "start": "remix-serve ./build/server/index.js",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "worker": "tsx app/jobs/start-workers.ts",
+    "worker:build": "tsc --project tsconfig.json --outDir build/worker --noEmit false"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "dependencies": {
+    "@remix-run/node": "^2.15.3",
+    "@remix-run/react": "^2.15.3",
+    "@remix-run/serve": "^2.15.3",
+    "@shopify/app-bridge-react": "^4.1.8",
+    "@shopify/polaris": "^13.9.5",
+    "@shopify/polaris-viz": "^10.2.1",
+    "@shopify/shopify-app-remix": "^3.3.1",
+    "bullmq": "^5.51.0",
+    "ioredis": "^5.6.1",
+    "isbot": "^5.1.27",
+    "jsonwebtoken": "^9.0.2",
+    "libphonenumber-js": "^1.11.19",
+    "mongoose": "^8.15.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "winston": "^3.17.0",
+    "zod": "^3.25.3"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.15.3",
+    "@shopify/api-codegen-preset": "^0.0.4",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.15.29",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.28.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
+  }
+}

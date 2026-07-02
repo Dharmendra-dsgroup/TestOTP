@@ -1,0 +1,181 @@
+{% comment %}
+  OTP Login Pro — Theme App Extension Block
+  Renders the OTP login widget and injects configuration for the JS widget.
+{% endcomment %}
+
+{%- liquid
+  assign channel = block.settings.channel | default: 'sms'
+  assign widget_type = block.settings.widget_type | default: 'popup'
+  assign otp_length = block.settings.otp_length | default: 6
+  assign button_text = block.settings.button_text | default: 'Login with OTP'
+  assign brand_color = block.settings.brand_color | default: '#3B82F6'
+  assign dark_mode = block.settings.dark_mode | default: false
+  assign redirect_url = block.settings.redirect_url | default: '/account'
+  assign show_on_account_page = block.settings.show_on_account_page | default: false
+-%}
+
+{%- comment %} Only render for guests on the account/login page when configured to replace it {%- endcomment %}
+{%- if show_on_account_page and customer -%}
+  {%- comment %} Customer is already logged in — do not show widget {%- endcomment %}
+{%- else -%}
+
+{{ 'otp-widget.css' | asset_url | stylesheet_tag }}
+
+<div
+  id="otp-lp-root-{{ block.id }}"
+  class="otp-lp-root{% if dark_mode %} otp-lp-dark{% endif %}"
+  data-block-id="{{ block.id }}"
+  {{ block.shopify_attributes }}
+>
+  {%- if widget_type == 'inline' -%}
+    {%- comment %} Inline: render the form directly, no trigger button {%- endcomment %}
+    <div class="otp-lp-inline">
+      <div class="otp-lp-modal" role="dialog" aria-label="{{ button_text }}">
+        <div id="otp-lp-content-{{ block.id }}"></div>
+      </div>
+    </div>
+  {%- else -%}
+    {%- comment %} Popup: trigger button + overlay {%- endcomment %}
+    <button
+      type="button"
+      class="otp-lp-trigger"
+      id="otp-lp-trigger-{{ block.id }}"
+      aria-haspopup="dialog"
+    >
+      {{ button_text }}
+    </button>
+    <div
+      class="otp-lp-overlay"
+      id="otp-lp-overlay-{{ block.id }}"
+      role="dialog"
+      aria-modal="true"
+      aria-label="{{ button_text }}"
+    >
+      <div class="otp-lp-modal">
+        <button type="button" class="otp-lp-close" id="otp-lp-close-{{ block.id }}" aria-label="Close">&#x2715;</button>
+        <div id="otp-lp-content-{{ block.id }}"></div>
+      </div>
+    </div>
+  {%- endif -%}
+</div>
+
+<script>
+  (function() {
+    var config = window.OTPLoginProConfig = window.OTPLoginProConfig || {};
+    var blockId = {{ block.id | json }};
+    var shopDomain = {{ shop.permanent_domain | json }};
+
+    config[blockId] = {
+      blockId: blockId,
+      shop: shopDomain,
+      apiBase: window.location.protocol + '//' + shopDomain + '/apps/otp-login-pro',
+      channel: {{ channel | json }},
+      otpLength: {{ otp_length | times: 1 }},
+      buttonText: {{ button_text | json }},
+      brandColor: {{ brand_color | json }},
+      darkMode: {{ dark_mode | json }},
+      widgetType: {{ widget_type | json }},
+      redirectUrl: {{ redirect_url | json }},
+      {% if customer %}
+      customerLoggedIn: true,
+      customerId: {{ customer.id | json }},
+      {% else %}
+      customerLoggedIn: false,
+      customerId: null,
+      {% endif %}
+    };
+  })();
+</script>
+
+<script src="{{ 'otp-widget.js' | asset_url }}" defer></script>
+
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "OTP Login",
+  "target": "section",
+  "templates": ["customers/login", "customers/register", "index", "page"],
+  "settings": [
+    {
+      "type": "header",
+      "content": "Authentication"
+    },
+    {
+      "type": "select",
+      "id": "channel",
+      "label": "Login channel",
+      "default": "sms",
+      "options": [
+        { "value": "sms", "label": "SMS (Phone)" },
+        { "value": "email", "label": "Email" },
+        { "value": "both", "label": "Customer's choice" }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "otp_length",
+      "label": "OTP length",
+      "default": "6",
+      "options": [
+        { "value": "4", "label": "4 digits" },
+        { "value": "6", "label": "6 digits" },
+        { "value": "8", "label": "8 digits" }
+      ]
+    },
+    {
+      "type": "header",
+      "content": "Appearance"
+    },
+    {
+      "type": "select",
+      "id": "widget_type",
+      "label": "Widget type",
+      "default": "popup",
+      "options": [
+        { "value": "popup", "label": "Popup (modal)" },
+        { "value": "inline", "label": "Inline (embedded)" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Login button text",
+      "default": "Login with OTP"
+    },
+    {
+      "type": "color",
+      "id": "brand_color",
+      "label": "Brand color",
+      "default": "#3B82F6"
+    },
+    {
+      "type": "checkbox",
+      "id": "dark_mode",
+      "label": "Dark mode",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "Behavior"
+    },
+    {
+      "type": "url",
+      "id": "redirect_url",
+      "label": "Redirect after login",
+      "info": "Where to send the customer after successful login. Defaults to /account."
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_account_page",
+      "label": "Only show to guests (hide if logged in)",
+      "default": true
+    }
+  ],
+  "presets": [
+    {
+      "name": "OTP Login"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,12 @@
+node_modules
+build
+.env
+.env.*
+!.env.example
+coverage
+tests
+*.test.ts
+.git
+.gitignore
+fly.toml
+README.md
