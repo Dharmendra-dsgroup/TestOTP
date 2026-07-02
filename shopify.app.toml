@@ -2,7 +2,7 @@
 
 client_id = "6be6e394f01f7143159be03196ec0d0a"
 name = "OTPRclub"
-application_url = "https://shopify.dev/apps/default-app-home"
+application_url = "https://testotp-2pky.onrender.com"
 embedded = true
 
 [build]
@@ -12,13 +12,11 @@ automatically_update_urls_on_dev = true
 api_version = "2026-07"
 
   [[webhooks.subscriptions]]
-  topics = [
-  "app/uninstalled",
-  "customers/data_request",
-  "customers/redact",
-  "shop/redact",
-  "app_subscriptions/update"
-]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["app_subscriptions/update"]
   uri = "/webhooks"
 
 [access_scopes]
@@ -26,10 +24,10 @@ api_version = "2026-07"
 scopes = "read_customers,write_customers,read_themes,write_themes"
 
 [auth]
-redirect_urls = [ "https://shopify.dev/apps/default-app-home/api/auth" ]
+redirect_urls = [ "https://testotp-2pky.onrender.com/auth/callback" ]
 
 [app_proxy]
-url = "https://shopify.dev/apps/default-app-home"
+url = "https://testotp-2pky.onrender.com"
 subpath = "otp-login-pro"
 prefix = "apps"
 
