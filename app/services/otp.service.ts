@@ -3,14 +3,14 @@
  *
  * generateAndSend:
  *   fraud-check → rate-check → generate → Redis-store → MongoDB-log
- *   → encrypt & enqueue → set-resend-cooldown → increment-usage → return requestId
+ *   → send SMS directly → set-resend-cooldown → increment-usage → return requestId
  *
  * verify:
  *   Redis-get → expiry-check → increment-attempts → hash-compare
  *   → success: delete-Redis + update-MongoDB → failure: check-maxAttempts
  *
  * resend:
- *   resend-cooldown-check → invalidate-old-Redis → regenerate → re-enqueue
+ *   resend-cooldown-check → invalidate-old-Redis → regenerate → send SMS directly
  *
  * Services NEVER throw. Every method returns ServiceResult<T>.
  */
@@ -18,7 +18,7 @@
 import { createOtp } from "~/lib/otp/otp-generator";
 import { otpStore } from "~/lib/otp/otp-store.server";
 import { otpRateLimiter } from "~/lib/rate-limit/otp-rate-limit.server";
-import { hashOtp, timingSafeEqual, encrypt } from "~/utils/crypto";
+import { hashOtp, timingSafeEqual } from "~/utils/crypto";
 import { normalizePhone, maskPhone, maskEmail, countryFromPhone } from "~/utils/phone";
 import { defaultOtpTemplate } from "~/lib/templates/sms-template.renderer";
 import { otpLogRepository } from "~/repositories/otp-log.repository";
@@ -26,7 +26,7 @@ import { shopRepository } from "~/repositories/shop.repository";
 import { smsTemplateRepository } from "~/repositories/sms-template.repository";
 import { fraudDetectionService } from "./fraud-detection.service";
 import type { SmsTemplateType } from "~/types/sms.types";
-import { otpDeliveryQueue } from "~/jobs/queue-manager.server";
+import { providerResolver } from "~/lib/sms/provider-resolver.server";
 import { analyticsService } from "./analytics.service";
 import { billingService } from "./billing.service";
 import { env } from "~/config/env";
@@ -236,31 +236,41 @@ export class OtpService {
       }
     }
 
-    // 11. Encrypt OTP for safe storage in BullMQ (Redis)
-    const otpEncrypted = encrypt(generated.code, env.ENCRYPTION_KEY);
+    // 11. Send OTP via SMS provider (synchronous — no queue worker required)
+    const smsVariables = {
+      store: shopDoc.shopName ?? shopDomain,
+      phone: maskedDestination,
+      appName: env.APP_NAME,
+    };
 
-    // 12. Enqueue SMS delivery job
-    await otpDeliveryQueue.add({
-      requestId: generated.requestId,
+    const smsResult = await providerResolver.sendOtp(
       shopDomain,
-      channel,
-      phone,
-      email,
-      otpEncrypted,
+      destination,
+      generated.code,
       template,
-      variables: {
-        store: shopDoc.shopName ?? shopDomain,
-        phone: maskedDestination,
-        appName: env.APP_NAME,
-      },
-      expiresAt: generated.expiresAt.toISOString(),
-      attempt: 1,
-    });
+      smsVariables
+    );
 
-    // 13. Set resend cooldown
+    if (!smsResult.success) {
+      const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
+      console.error(`[OtpService] SMS send failed for ${shopDomain}: ${errMsg}`);
+      await otpLogRepository.updateStatus(generated.requestId, "failed", {
+        errorCode: "SMS_SEND_FAILED",
+        errorMessage: errMsg,
+      }).catch(() => {});
+      void analyticsService.record(shopDomain, { otpFailed: 1, smsFailed: 1 });
+      return serviceFailure(`Failed to send OTP: ${errMsg}`, 500);
+    }
+
+    await otpLogRepository.updateStatus(generated.requestId, "sent", {
+      smsProvider: smsResult.providerName ?? smsResult.provider,
+      smsSid: smsResult.messageId,
+    }).catch(() => {});
+
+    // 12. Set resend cooldown
     await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
 
-    // 14. Record analytics (fire-and-forget)
+    // 13. Record analytics (fire-and-forget)
     void analyticsService.record(
       shopDomain,
       { otpRequested: 1 },
@@ -427,34 +437,43 @@ export class OtpService {
       expiresAt: generated.expiresAt,
     } as Parameters<typeof otpLogRepository.create>[0]).catch(() => {});
 
-    // 7. Load template and enqueue
+    // 7. Load template and send SMS directly
     let template = defaultOtpTemplate(otpExpiry);
     try {
       const tmpl = await smsTemplateRepository.findDefaultForShop(shopDomain, oldEntry.channel);
       if (tmpl?.content) template = tmpl.content;
     } catch {/* use default */}
 
-    const otpEncrypted = encrypt(generated.code, env.ENCRYPTION_KEY);
     const maskedDest = oldEntry.phone
       ? maskPhone(oldEntry.phone)
       : maskEmail(oldEntry.email ?? "");
 
-    await otpDeliveryQueue.add({
-      requestId: generated.requestId,
+    const smsResult = await providerResolver.sendOtp(
       shopDomain,
-      channel: oldEntry.channel,
-      phone: oldEntry.phone,
-      email: oldEntry.email,
-      otpEncrypted,
+      destination,
+      generated.code,
       template,
-      variables: {
+      {
         store: shop?.shopName ?? shopDomain,
         phone: maskedDest,
         appName: env.APP_NAME,
-      },
-      expiresAt: generated.expiresAt.toISOString(),
-      attempt: 1,
-    });
+      }
+    );
+
+    if (!smsResult.success) {
+      const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
+      console.error(`[OtpService] Resend SMS failed for ${shopDomain}: ${errMsg}`);
+      await otpLogRepository.updateStatus(generated.requestId, "failed", {
+        errorCode: "SMS_SEND_FAILED",
+        errorMessage: errMsg,
+      }).catch(() => {});
+      return serviceFailure(`Failed to resend OTP: ${errMsg}`, 500);
+    }
+
+    await otpLogRepository.updateStatus(generated.requestId, "sent", {
+      smsProvider: smsResult.providerName ?? smsResult.provider,
+      smsSid: smsResult.messageId,
+    }).catch(() => {});
 
     await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
     void analyticsService.record(shopDomain, { otpRequested: 1 });
