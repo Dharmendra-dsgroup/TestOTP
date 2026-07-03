@@ -86,6 +86,20 @@ export class SettingsService {
     }
   }
 
+  async updateSettings(
+    shopDomain: string,
+    data: Partial<ShopSettingsUpdateInput>
+  ): Promise<ServiceResult<IShopDocument["settings"]>> {
+    try {
+      const shop = await shopRepository.updateSettings(shopDomain, data);
+      if (!shop) return serviceFailure("Shop not found", 404);
+      return serviceSuccess(shop.settings);
+    } catch (error) {
+      console.error("[SettingsService] updateSettings failed:", error);
+      return serviceFailure("Failed to update settings", 500);
+    }
+  }
+
   async updateCountrySettings(
     shopDomain: string,
     data: Pick<ShopSettingsUpdateInput, "allowedCountries" | "blockedCountries">

@@ -25,15 +25,13 @@ import {
   Card,
   Checkbox,
   Divider,
-  Frame,
   InlineStack,
-  RangeSlider,
   ResourceItem,
   ResourceList,
   Text,
   TextField,
-  Toast,
 } from "@shopify/polaris";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { useCallback, useEffect, useState } from "react";
 import { requireAdminAuth } from "~/middleware/auth.middleware";
 import { settingsService } from "~/services/settings.service";
@@ -65,14 +63,6 @@ export const action = async (args: ActionFunctionArgs) => {
 
   // ── Core / Fraud settings save ────────────────────────────────────────────
   if (intent === "save_security") {
-    const update: Record<string, unknown> = {
-      autoDetectCountry: formData.get("autoDetectCountry") === "true",
-      captchaEnabled: formData.get("captchaEnabled") === "true",
-      vpnDetectionEnabled: formData.get("vpnDetectionEnabled") === "true",
-      fraudDetectionEnabled: formData.get("fraudDetectionEnabled") === "true",
-      autoBlockEnabled: formData.get("autoBlockEnabled") === "true",
-    };
-
     const ipVelocityLimit = parseInt(formData.get("ipVelocityLimit") as string, 10);
     const ipVelocityWindowMinutes = parseInt(
       formData.get("ipVelocityWindowMinutes") as string,
@@ -91,11 +81,18 @@ export const action = async (args: ActionFunctionArgs) => {
       10
     );
 
-    if (!isNaN(ipVelocityLimit)) update.ipVelocityLimit = Math.min(500, Math.max(1, ipVelocityLimit));
-    if (!isNaN(ipVelocityWindowMinutes)) update.ipVelocityWindowMinutes = Math.min(1440, Math.max(1, ipVelocityWindowMinutes));
-    if (!isNaN(phoneVelocityLimit)) update.phoneVelocityLimit = Math.min(100, Math.max(1, phoneVelocityLimit));
-    if (!isNaN(phoneVelocityWindowMinutes)) update.phoneVelocityWindowMinutes = Math.min(1440, Math.max(1, phoneVelocityWindowMinutes));
-    if (!isNaN(autoBlockThreshold)) update.autoBlockThreshold = Math.min(500, Math.max(5, autoBlockThreshold));
+    const update = {
+      autoDetectCountry: formData.get("autoDetectCountry") === "true",
+      captchaEnabled: formData.get("captchaEnabled") === "true",
+      vpnDetectionEnabled: formData.get("vpnDetectionEnabled") === "true",
+      fraudDetectionEnabled: formData.get("fraudDetectionEnabled") === "true",
+      autoBlockEnabled: formData.get("autoBlockEnabled") === "true",
+      ...(!isNaN(ipVelocityLimit) && { ipVelocityLimit: Math.min(500, Math.max(1, ipVelocityLimit)) }),
+      ...(!isNaN(ipVelocityWindowMinutes) && { ipVelocityWindowMinutes: Math.min(1440, Math.max(1, ipVelocityWindowMinutes)) }),
+      ...(!isNaN(phoneVelocityLimit) && { phoneVelocityLimit: Math.min(100, Math.max(1, phoneVelocityLimit)) }),
+      ...(!isNaN(phoneVelocityWindowMinutes) && { phoneVelocityWindowMinutes: Math.min(1440, Math.max(1, phoneVelocityWindowMinutes)) }),
+      ...(!isNaN(autoBlockThreshold) && { autoBlockThreshold: Math.min(500, Math.max(5, autoBlockThreshold)) }),
+    };
 
     const result = await settingsService.updateSettings(shop, update);
     if (!result.success) {
@@ -112,8 +109,7 @@ export const action = async (args: ActionFunctionArgs) => {
     }
 
     const shopDoc = await requireAdminAuth(args).then(({ shopData }) => shopData);
-    const existing: string[] =
-      (shopDoc?.settings as Record<string, unknown>)?.blockedEmailDomains as string[] ?? [];
+    const existing: string[] = shopDoc?.settings?.blockedEmailDomains ?? [];
 
     if (existing.includes(domain)) {
       return json({ ok: false, intent, error: "Domain is already blocked" }, { status: 409 });
@@ -131,8 +127,7 @@ export const action = async (args: ActionFunctionArgs) => {
   if (intent === "remove_domain") {
     const domain = (formData.get("domain") as string ?? "").toLowerCase().trim();
     const shopDoc = await requireAdminAuth(args).then(({ shopData }) => shopData);
-    const existing: string[] =
-      (shopDoc?.settings as Record<string, unknown>)?.blockedEmailDomains as string[] ?? [];
+    const existing: string[] = shopDoc?.settings?.blockedEmailDomains ?? [];
 
     const result = await settingsService.updateSettings(shop, {
       blockedEmailDomains: existing.filter((d) => d !== domain),
@@ -163,53 +158,51 @@ export default function SecuritySettings() {
   const actionData = useActionData<ActionData>();
   const navigation = useNavigation();
   const domainFetcher = useFetcher<ActionData>();
+  const shopify = useAppBridge();
 
   const isSaving =
     navigation.state === "submitting" &&
     navigation.formData?.get("intent") === "save_security";
 
-  const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null);
   const [newDomain, setNewDomain] = useState("");
 
   const isGrowthOrAbove = hasFraudDetection;
-  const s = settings as Record<string, unknown> | null;
 
   // Controlled state for fraud detection fields
   const [fraudEnabled, setFraudEnabled] = useState(
-    (s?.fraudDetectionEnabled as boolean) ?? false
+    settings?.fraudDetectionEnabled ?? false
   );
   const [autoBlockEnabled, setAutoBlockEnabled] = useState(
-    (s?.autoBlockEnabled as boolean) ?? false
+    settings?.autoBlockEnabled ?? false
   );
   const [ipLimit, setIpLimit] = useState(
-    String((s?.ipVelocityLimit as number) ?? 20)
+    String(settings?.ipVelocityLimit ?? 20)
   );
   const [ipWindow, setIpWindow] = useState(
-    String((s?.ipVelocityWindowMinutes as number) ?? 60)
+    String(settings?.ipVelocityWindowMinutes ?? 60)
   );
   const [phoneLimit, setPhoneLimit] = useState(
-    String((s?.phoneVelocityLimit as number) ?? 5)
+    String(settings?.phoneVelocityLimit ?? 5)
   );
   const [phoneWindow, setPhoneWindow] = useState(
-    String((s?.phoneVelocityWindowMinutes as number) ?? 60)
+    String(settings?.phoneVelocityWindowMinutes ?? 60)
   );
   const [autoBlockThreshold, setAutoBlockThreshold] = useState(
-    String((s?.autoBlockThreshold as number) ?? 50)
+    String(settings?.autoBlockThreshold ?? 50)
   );
 
-  const blockedDomains: string[] =
-    (s?.blockedEmailDomains as string[]) ?? [];
+  const blockedDomains: string[] = settings?.blockedEmailDomains ?? [];
 
   // Toast on save
   useEffect(() => {
     if (actionData?.intent === "save_security") {
       if (actionData.ok) {
-        setToast({ message: "Security settings saved." });
+        shopify.toast.show("Security settings saved.");
       } else {
-        setToast({ message: actionData.error ?? "Save failed", error: true });
+        shopify.toast.show(actionData.error ?? "Save failed", { isError: true });
       }
     }
-  }, [actionData]);
+  }, [actionData, shopify]);
 
   // Toast on domain actions
   useEffect(() => {
@@ -217,14 +210,14 @@ export default function SecuritySettings() {
       const d = domainFetcher.data;
       if (d.ok && d.intent === "add_domain") {
         setNewDomain("");
-        setToast({ message: `Domain "${d.domain}" blocked.` });
+        shopify.toast.show(`Domain "${d.domain}" blocked.`);
       } else if (d.ok && d.intent === "remove_domain") {
-        setToast({ message: `Domain "${d.domain}" unblocked.` });
+        shopify.toast.show(`Domain "${d.domain}" unblocked.`);
       } else if (!d.ok) {
-        setToast({ message: d.error ?? "Action failed", error: true });
+        shopify.toast.show(d.error ?? "Action failed", { isError: true });
       }
     }
-  }, [domainFetcher.state, domainFetcher.data]);
+  }, [domainFetcher.state, domainFetcher.data, shopify]);
 
   const handleAddDomain = useCallback(() => {
     if (!newDomain.trim()) return;
@@ -245,227 +238,39 @@ export default function SecuritySettings() {
   );
 
   return (
-    <Frame>
-      {toast && (
-        <Toast
-          content={toast.message}
-          error={toast.error}
-          onDismiss={() => setToast(null)}
-          duration={3000}
-        />
-      )}
+    <Box padding="400">
+      <Form method="post">
+        <input type="hidden" name="intent" value="save_security" />
+        {/* Pass controlled fraud detection values as hidden inputs */}
+        <input type="hidden" name="fraudDetectionEnabled" value={String(fraudEnabled)} />
+        <input type="hidden" name="autoBlockEnabled" value={String(autoBlockEnabled)} />
+        <input type="hidden" name="ipVelocityLimit" value={ipLimit} />
+        <input type="hidden" name="ipVelocityWindowMinutes" value={ipWindow} />
+        <input type="hidden" name="phoneVelocityLimit" value={phoneLimit} />
+        <input type="hidden" name="phoneVelocityWindowMinutes" value={phoneWindow} />
+        <input type="hidden" name="autoBlockThreshold" value={autoBlockThreshold} />
 
-      <Box padding="400">
-        <Form method="post">
-          <input type="hidden" name="intent" value="save_security" />
-          {/* Pass controlled fraud detection values as hidden inputs */}
-          <input type="hidden" name="fraudDetectionEnabled" value={String(fraudEnabled)} />
-          <input type="hidden" name="autoBlockEnabled" value={String(autoBlockEnabled)} />
-          <input type="hidden" name="ipVelocityLimit" value={ipLimit} />
-          <input type="hidden" name="ipVelocityWindowMinutes" value={ipWindow} />
-          <input type="hidden" name="phoneVelocityLimit" value={phoneLimit} />
-          <input type="hidden" name="phoneVelocityWindowMinutes" value={phoneWindow} />
-          <input type="hidden" name="autoBlockThreshold" value={autoBlockThreshold} />
-
-          <BlockStack gap="600">
-            {/* ── Core Security ── */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Core Security
-              </Text>
-              <Divider />
-              <Checkbox
-                label="Auto-detect customer country"
-                name="autoDetectCountry"
-                value="true"
-                defaultChecked={
-                  (settings as Record<string, unknown>)?.autoDetectCountry !== false
-                }
-                helpText="Pre-fills the country dial code based on the customer's IP address"
-              />
-            </BlockStack>
-
-            {/* ── Fraud Protection ── */}
-            <BlockStack gap="400">
-              <InlineStack gap="200" blockAlign="center">
-                <Text as="h2" variant="headingMd">
-                  Fraud Protection
-                </Text>
-                {!isGrowthOrAbove && (
-                  <Badge tone="warning">Growth plan required</Badge>
-                )}
-              </InlineStack>
-              <Divider />
-
-              {!isGrowthOrAbove && (
-                <Banner
-                  title="Fraud detection requires Growth or Enterprise plan"
-                  tone="info"
-                  action={{ content: "View plans", url: "/app/billing" }}
-                >
-                  <Text as="p" variant="bodySm">
-                    Upgrade to unlock IP/phone velocity limits, auto-block,
-                    CAPTCHA, VPN detection, and email domain blocking.
-                  </Text>
-                </Banner>
-              )}
-
-              <BlockStack gap="400">
-                <Checkbox
-                  label="Enable CAPTCHA verification"
-                  name="captchaEnabled"
-                  value="true"
-                  defaultChecked={
-                    isGrowthOrAbove &&
-                    ((settings as Record<string, unknown>)?.captchaEnabled as boolean ?? false)
-                  }
-                  disabled={!isGrowthOrAbove}
-                  helpText="Require CAPTCHA before OTP is sent (reduces bot abuse)"
-                />
-                <Checkbox
-                  label="Block VPN / proxy IPs"
-                  name="vpnDetectionEnabled"
-                  value="true"
-                  defaultChecked={
-                    isGrowthOrAbove &&
-                    ((settings as Record<string, unknown>)?.vpnDetectionEnabled as boolean ?? false)
-                  }
-                  disabled={!isGrowthOrAbove}
-                  helpText="Reject OTP requests from known VPN and proxy services"
-                />
-                <Checkbox
-                  label="Enable advanced fraud detection"
-                  checked={isGrowthOrAbove ? fraudEnabled : false}
-                  onChange={setFraudEnabled}
-                  disabled={!isGrowthOrAbove}
-                  helpText="Enables velocity limiting and auto-block rules below"
-                />
-              </BlockStack>
-
-              {/* Velocity settings — only shown when fraud detection enabled */}
-              {isGrowthOrAbove && fraudEnabled && (
-                <Card>
-                  <BlockStack gap="400">
-                    <Text as="h3" variant="headingSm">
-                      Velocity Limits
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Block OTP requests when a single IP or phone number
-                      exceeds the threshold within the time window.
-                    </Text>
-
-                    <BlockStack gap="300">
-                      <Text as="p" variant="bodySm" fontWeight="semibold">
-                        IP Address Limits
-                      </Text>
-                      <InlineStack gap="300">
-                        <div style={{ flex: 1 }}>
-                          <TextField
-                            label="Max requests per window"
-                            type="number"
-                            value={ipLimit}
-                            onChange={setIpLimit}
-                            min={1}
-                            max={500}
-                            autoComplete="off"
-                            suffix="requests"
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <TextField
-                            label="Window duration"
-                            type="number"
-                            value={ipWindow}
-                            onChange={setIpWindow}
-                            min={1}
-                            max={1440}
-                            autoComplete="off"
-                            suffix="minutes"
-                          />
-                        </div>
-                      </InlineStack>
-                    </BlockStack>
-
-                    <Divider />
-
-                    <BlockStack gap="300">
-                      <Text as="p" variant="bodySm" fontWeight="semibold">
-                        Phone / Email Limits
-                      </Text>
-                      <InlineStack gap="300">
-                        <div style={{ flex: 1 }}>
-                          <TextField
-                            label="Max requests per window"
-                            type="number"
-                            value={phoneLimit}
-                            onChange={setPhoneLimit}
-                            min={1}
-                            max={100}
-                            autoComplete="off"
-                            suffix="requests"
-                          />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <TextField
-                            label="Window duration"
-                            type="number"
-                            value={phoneWindow}
-                            onChange={setPhoneWindow}
-                            min={1}
-                            max={1440}
-                            autoComplete="off"
-                            suffix="minutes"
-                          />
-                        </div>
-                      </InlineStack>
-                    </BlockStack>
-
-                    <Divider />
-
-                    <BlockStack gap="300">
-                      <Text as="p" variant="bodySm" fontWeight="semibold">
-                        Auto-Block
-                      </Text>
-                      <Checkbox
-                        label="Automatically add IP to blocklist after repeated violations"
-                        checked={autoBlockEnabled}
-                        onChange={setAutoBlockEnabled}
-                        helpText="A 7-day temporary block is applied once the daily threshold is reached"
-                      />
-                      {autoBlockEnabled && (
-                        <div style={{ maxWidth: "240px" }}>
-                          <TextField
-                            label="Daily violations before auto-block"
-                            type="number"
-                            value={autoBlockThreshold}
-                            onChange={setAutoBlockThreshold}
-                            min={5}
-                            max={500}
-                            autoComplete="off"
-                            suffix="violations"
-                          />
-                        </div>
-                      )}
-                    </BlockStack>
-                  </BlockStack>
-                </Card>
-              )}
-            </BlockStack>
-
-            <InlineStack align="end">
-              <Button submit variant="primary" loading={isSaving}>
-                Save Security Settings
-              </Button>
-            </InlineStack>
+        <BlockStack gap="600">
+          {/* ── Core Security ── */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Core Security
+            </Text>
+            <Divider />
+            <Checkbox
+              label="Auto-detect customer country"
+              name="autoDetectCountry"
+              value="true"
+              defaultChecked={settings?.autoDetectCountry !== false}
+              helpText="Pre-fills the country dial code based on the customer's IP address"
+            />
           </BlockStack>
-        </Form>
 
-        {/* ── Email Domain Blocklist ── */}
-        <Box paddingBlockStart="600">
+          {/* ── Fraud Protection ── */}
           <BlockStack gap="400">
             <InlineStack gap="200" blockAlign="center">
               <Text as="h2" variant="headingMd">
-                Email Domain Blocklist
+                Fraud Protection
               </Text>
               {!isGrowthOrAbove && (
                 <Badge tone="warning">Growth plan required</Badge>
@@ -473,82 +278,251 @@ export default function SecuritySettings() {
             </InlineStack>
             <Divider />
 
-            {!isGrowthOrAbove ? (
-              <Text as="p" variant="bodySm" tone="subdued">
-                Upgrade to Growth to block disposable email domains (e.g.
-                mailinator.com, guerrillamail.com).
-              </Text>
-            ) : (
-              <BlockStack gap="300">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  OTP emails to addresses from these domains will be blocked.
-                  Useful for blocking disposable / throwaway email providers.
+            {!isGrowthOrAbove && (
+              <Banner
+                title="Fraud detection requires Growth or Enterprise plan"
+                tone="info"
+                action={{ content: "View plans", url: "/app/billing" }}
+              >
+                <Text as="p" variant="bodySm">
+                  Upgrade to unlock IP/phone velocity limits, auto-block,
+                  CAPTCHA, VPN detection, and email domain blocking.
                 </Text>
+              </Banner>
+            )}
 
-                <InlineStack gap="200" blockAlign="end">
-                  <div style={{ flex: 1, maxWidth: "320px" }}>
-                    <TextField
-                      label="Add domain"
-                      value={newDomain}
-                      onChange={setNewDomain}
-                      autoComplete="off"
-                      placeholder="mailinator.com"
-                      helpText="Enter the domain without @ or protocol"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddDomain();
-                        }
-                      }}
-                    />
-                  </div>
-                  <div style={{ paddingBottom: "20px" }}>
-                    <Button
-                      onClick={handleAddDomain}
-                      loading={
-                        domainFetcher.state === "submitting" &&
-                        domainFetcher.formData?.get("intent") === "add_domain"
-                      }
-                      disabled={!newDomain.trim()}
-                    >
-                      Block domain
-                    </Button>
-                  </div>
-                </InlineStack>
+            <BlockStack gap="400">
+              <Checkbox
+                label="Enable CAPTCHA verification"
+                name="captchaEnabled"
+                value="true"
+                defaultChecked={isGrowthOrAbove && (settings?.captchaEnabled ?? false)}
+                disabled={!isGrowthOrAbove}
+                helpText="Require CAPTCHA before OTP is sent (reduces bot abuse)"
+              />
+              <Checkbox
+                label="Block VPN / proxy IPs"
+                name="vpnDetectionEnabled"
+                value="true"
+                defaultChecked={isGrowthOrAbove && (settings?.vpnDetectionEnabled ?? false)}
+                disabled={!isGrowthOrAbove}
+                helpText="Reject OTP requests from known VPN and proxy services"
+              />
+              <Checkbox
+                label="Enable advanced fraud detection"
+                checked={isGrowthOrAbove ? fraudEnabled : false}
+                onChange={setFraudEnabled}
+                disabled={!isGrowthOrAbove}
+                helpText="Enables velocity limiting and auto-block rules below"
+              />
+            </BlockStack>
 
-                {blockedDomains.length > 0 ? (
-                  <Card padding="0">
-                    <ResourceList
-                      resourceName={{ singular: "domain", plural: "domains" }}
-                      items={blockedDomains}
-                      renderItem={(domain) => (
-                        <ResourceItem
-                          id={domain}
-                          accessibilityLabel={`Blocked domain: ${domain}`}
-                          shortcutActions={[
-                            {
-                              content: "Unblock",
-                              onAction: () => handleRemoveDomain(domain),
-                            },
-                          ]}
-                        >
-                          <Text as="p" variant="bodyMd">
-                            {domain}
-                          </Text>
-                        </ResourceItem>
-                      )}
-                    />
-                  </Card>
-                ) : (
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    No domains blocked yet.
+            {/* Velocity settings — only shown when fraud detection enabled */}
+            {isGrowthOrAbove && fraudEnabled && (
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h3" variant="headingSm">
+                    Velocity Limits
                   </Text>
-                )}
-              </BlockStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Block OTP requests when a single IP or phone number
+                    exceeds the threshold within the time window.
+                  </Text>
+
+                  <BlockStack gap="300">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">
+                      IP Address Limits
+                    </Text>
+                    <InlineStack gap="300">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Max requests per window"
+                          type="number"
+                          value={ipLimit}
+                          onChange={setIpLimit}
+                          min={1}
+                          max={500}
+                          autoComplete="off"
+                          suffix="requests"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Window duration"
+                          type="number"
+                          value={ipWindow}
+                          onChange={setIpWindow}
+                          min={1}
+                          max={1440}
+                          autoComplete="off"
+                          suffix="minutes"
+                        />
+                      </div>
+                    </InlineStack>
+                  </BlockStack>
+
+                  <Divider />
+
+                  <BlockStack gap="300">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">
+                      Phone / Email Limits
+                    </Text>
+                    <InlineStack gap="300">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Max requests per window"
+                          type="number"
+                          value={phoneLimit}
+                          onChange={setPhoneLimit}
+                          min={1}
+                          max={100}
+                          autoComplete="off"
+                          suffix="requests"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Window duration"
+                          type="number"
+                          value={phoneWindow}
+                          onChange={setPhoneWindow}
+                          min={1}
+                          max={1440}
+                          autoComplete="off"
+                          suffix="minutes"
+                        />
+                      </div>
+                    </InlineStack>
+                  </BlockStack>
+
+                  <Divider />
+
+                  <BlockStack gap="300">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">
+                      Auto-Block
+                    </Text>
+                    <Checkbox
+                      label="Automatically add IP to blocklist after repeated violations"
+                      checked={autoBlockEnabled}
+                      onChange={setAutoBlockEnabled}
+                      helpText="A 7-day temporary block is applied once the daily threshold is reached"
+                    />
+                    {autoBlockEnabled && (
+                      <div style={{ maxWidth: "240px" }}>
+                        <TextField
+                          label="Daily violations before auto-block"
+                          type="number"
+                          value={autoBlockThreshold}
+                          onChange={setAutoBlockThreshold}
+                          min={5}
+                          max={500}
+                          autoComplete="off"
+                          suffix="violations"
+                        />
+                      </div>
+                    )}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
             )}
           </BlockStack>
-        </Box>
+
+          <InlineStack align="end">
+            <Button submit variant="primary" loading={isSaving}>
+              Save Security Settings
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Form>
+
+      {/* ── Email Domain Blocklist ── */}
+      <Box paddingBlockStart="600">
+        <BlockStack gap="400">
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="h2" variant="headingMd">
+              Email Domain Blocklist
+            </Text>
+            {!isGrowthOrAbove && (
+              <Badge tone="warning">Growth plan required</Badge>
+            )}
+          </InlineStack>
+          <Divider />
+
+          {!isGrowthOrAbove ? (
+            <Text as="p" variant="bodySm" tone="subdued">
+              Upgrade to Growth to block disposable email domains (e.g.
+              mailinator.com, guerrillamail.com).
+            </Text>
+          ) : (
+            <BlockStack gap="300">
+              <Text as="p" variant="bodySm" tone="subdued">
+                OTP emails to addresses from these domains will be blocked.
+                Useful for blocking disposable / throwaway email providers.
+              </Text>
+
+              <InlineStack gap="200" blockAlign="end">
+                <div style={{ flex: 1, maxWidth: "320px" }}>
+                  <TextField
+                    label="Add domain"
+                    value={newDomain}
+                    onChange={setNewDomain}
+                    autoComplete="off"
+                    placeholder="mailinator.com"
+                    helpText="Enter the domain without @ or protocol"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddDomain();
+                      }
+                    }}
+                  />
+                </div>
+                <div style={{ paddingBottom: "20px" }}>
+                  <Button
+                    onClick={handleAddDomain}
+                    loading={
+                      domainFetcher.state === "submitting" &&
+                      domainFetcher.formData?.get("intent") === "add_domain"
+                    }
+                    disabled={!newDomain.trim()}
+                  >
+                    Block domain
+                  </Button>
+                </div>
+              </InlineStack>
+
+              {blockedDomains.length > 0 ? (
+                <Card padding="0">
+                  <ResourceList
+                    resourceName={{ singular: "domain", plural: "domains" }}
+                    items={blockedDomains}
+                    renderItem={(domain) => (
+                      <ResourceItem
+                        id={domain}
+                        accessibilityLabel={`Blocked domain: ${domain}`}
+                        shortcutActions={[
+                          {
+                            content: "Unblock",
+                            onAction: () => handleRemoveDomain(domain),
+                          },
+                        ]}
+                      >
+                        <Text as="p" variant="bodyMd">
+                          {domain}
+                        </Text>
+                      </ResourceItem>
+                    )}
+                  />
+                </Card>
+              ) : (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  No domains blocked yet.
+                </Text>
+              )}
+            </BlockStack>
+          )}
+        </BlockStack>
       </Box>
-    </Frame>
+    </Box>
   );
 }

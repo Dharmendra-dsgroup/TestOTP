@@ -5,18 +5,17 @@ import {
   BlockStack,
   Box,
   Button,
+  Checkbox,
+  Divider,
   FormLayout,
   InlineStack,
   Select,
   Text,
   TextField,
-  Toast,
-  Frame,
-  Checkbox,
-  Divider,
   Banner,
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { useEffect, useState } from "react";
 import { requireAdminAuth } from "~/middleware/auth.middleware";
 import { settingsService } from "~/services/settings.service";
 import { auditLogService } from "~/services/audit-log.service";
@@ -93,158 +92,152 @@ export default function GeneralSettings() {
   const { settings } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const shopify = useAppBridge();
 
   const isSaving = navigation.state === "submitting";
-  const [toastActive, setToastActive] = useState(false);
+  const [darkMode, setDarkMode] = useState(settings?.darkMode ?? false);
 
-  if (actionData?.success && !toastActive) {
-    setToastActive(true);
-  }
+  useEffect(() => {
+    if (actionData?.success) {
+      shopify.toast.show("General settings saved");
+    }
+  }, [actionData, shopify]);
 
   return (
-    <Frame>
-      {toastActive && (
-        <Toast
-          content="General settings saved"
-          onDismiss={() => setToastActive(false)}
-          duration={3000}
-        />
-      )}
+    <Box padding="600">
+      <Form method="post">
+        <BlockStack gap="600">
+          {actionData?.errors?.form && (
+            <Banner title="Save failed" tone="critical">
+              <Text as="p">{actionData.errors.form}</Text>
+            </Banner>
+          )}
 
-      <Box padding="600">
-        <Form method="post">
-          <BlockStack gap="600">
-            {actionData?.errors?.form && (
-              <Banner title="Save failed" tone="critical">
-                <Text as="p">{actionData.errors.form}</Text>
-              </Banner>
-            )}
-
-            {/* Widget Appearance */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Widget Appearance
-              </Text>
-              <Divider />
-              <FormLayout>
-                <FormLayout.Group>
-                  <Select
-                    label="Widget Type"
-                    name="widgetType"
-                    options={WIDGET_OPTIONS}
-                    defaultValue={settings?.widgetType ?? "popup"}
-                    error={actionData?.errors?.widgetType}
-                  />
-                  <Select
-                    label="Popup Position"
-                    name="popupPosition"
-                    options={POSITION_OPTIONS}
-                    defaultValue={settings?.popupPosition ?? "center"}
-                    error={actionData?.errors?.popupPosition}
-                  />
-                </FormLayout.Group>
-                <TextField
-                  label="Button Text"
-                  name="buttonText"
-                  defaultValue={settings?.buttonText ?? "Login with OTP"}
-                  maxLength={50}
-                  showCharacterCount
-                  autoComplete="off"
-                  error={actionData?.errors?.buttonText}
-                />
-              </FormLayout>
-            </BlockStack>
-
-            {/* Branding */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Branding
-              </Text>
-              <Divider />
-              <FormLayout>
-                <FormLayout.Group>
-                  <TextField
-                    label="Brand Color"
-                    name="brandColor"
-                    placeholder="#3B82F6"
-                    defaultValue={settings?.brandColor ?? ""}
-                    autoComplete="off"
-                    helpText="Hex color for buttons and accents (e.g. #FF5500)"
-                    error={actionData?.errors?.brandColor}
-                  />
-                  <TextField
-                    label="Logo URL"
-                    name="logoUrl"
-                    placeholder="https://cdn.example.com/logo.png"
-                    defaultValue={settings?.logoUrl ?? ""}
-                    autoComplete="off"
-                    error={actionData?.errors?.logoUrl}
-                  />
-                </FormLayout.Group>
-                <Checkbox
-                  label="Enable Dark Mode"
-                  name="darkMode"
-                  value="true"
-                  checked={settings?.darkMode ?? false}
-                />
-              </FormLayout>
-            </BlockStack>
-
-            {/* Localization */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Localization
-              </Text>
-              <Divider />
-              <FormLayout>
+          {/* Widget Appearance */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Widget Appearance
+            </Text>
+            <Divider />
+            <FormLayout>
+              <FormLayout.Group>
                 <Select
-                  label="Default Language"
-                  name="language"
-                  options={LANGUAGE_OPTIONS}
-                  defaultValue={settings?.language ?? "en"}
-                  error={actionData?.errors?.language}
+                  label="Widget Type"
+                  name="widgetType"
+                  options={WIDGET_OPTIONS}
+                  defaultValue={settings?.widgetType ?? "popup"}
+                  error={actionData?.errors?.widgetType}
                 />
-              </FormLayout>
-            </BlockStack>
-
-            {/* Advanced */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Advanced
-              </Text>
-              <Divider />
-              <FormLayout>
-                <TextField
-                  label="Custom CSS"
-                  name="customCss"
-                  multiline={6}
-                  defaultValue={settings?.customCss ?? ""}
-                  placeholder="/* Add custom styles here */"
-                  autoComplete="off"
-                  helpText="Applied to the OTP widget only"
-                  error={actionData?.errors?.customCss}
+                <Select
+                  label="Popup Position"
+                  name="popupPosition"
+                  options={POSITION_OPTIONS}
+                  defaultValue={settings?.popupPosition ?? "center"}
+                  error={actionData?.errors?.popupPosition}
                 />
-                <TextField
-                  label="Custom JavaScript"
-                  name="customJs"
-                  multiline={4}
-                  defaultValue={settings?.customJs ?? ""}
-                  placeholder="// Custom JS runs after widget loads"
-                  autoComplete="off"
-                  helpText="Use with caution — runs in the customer's browser"
-                  error={actionData?.errors?.customJs}
-                />
-              </FormLayout>
-            </BlockStack>
-
-            <InlineStack align="end">
-              <Button submit variant="primary" loading={isSaving}>
-                Save General Settings
-              </Button>
-            </InlineStack>
+              </FormLayout.Group>
+              <TextField
+                label="Button Text"
+                name="buttonText"
+                defaultValue={settings?.buttonText ?? "Login with OTP"}
+                maxLength={50}
+                showCharacterCount
+                autoComplete="off"
+                error={actionData?.errors?.buttonText}
+              />
+            </FormLayout>
           </BlockStack>
-        </Form>
-      </Box>
-    </Frame>
+
+          {/* Branding */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Branding
+            </Text>
+            <Divider />
+            <FormLayout>
+              <FormLayout.Group>
+                <TextField
+                  label="Brand Color"
+                  name="brandColor"
+                  placeholder="#3B82F6"
+                  defaultValue={settings?.brandColor ?? ""}
+                  autoComplete="off"
+                  helpText="Hex color for buttons and accents (e.g. #FF5500)"
+                  error={actionData?.errors?.brandColor}
+                />
+                <TextField
+                  label="Logo URL"
+                  name="logoUrl"
+                  placeholder="https://cdn.example.com/logo.png"
+                  defaultValue={settings?.logoUrl ?? ""}
+                  autoComplete="off"
+                  error={actionData?.errors?.logoUrl}
+                />
+              </FormLayout.Group>
+              <Checkbox
+                label="Enable Dark Mode"
+                name="darkMode"
+                value="true"
+                checked={darkMode}
+                onChange={setDarkMode}
+              />
+            </FormLayout>
+          </BlockStack>
+
+          {/* Localization */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Localization
+            </Text>
+            <Divider />
+            <FormLayout>
+              <Select
+                label="Default Language"
+                name="language"
+                options={LANGUAGE_OPTIONS}
+                defaultValue={settings?.language ?? "en"}
+                error={actionData?.errors?.language}
+              />
+            </FormLayout>
+          </BlockStack>
+
+          {/* Advanced */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Advanced
+            </Text>
+            <Divider />
+            <FormLayout>
+              <TextField
+                label="Custom CSS"
+                name="customCss"
+                multiline={6}
+                defaultValue={settings?.customCss ?? ""}
+                placeholder="/* Add custom styles here */"
+                autoComplete="off"
+                helpText="Applied to the OTP widget only"
+                error={actionData?.errors?.customCss}
+              />
+              <TextField
+                label="Custom JavaScript"
+                name="customJs"
+                multiline={4}
+                defaultValue={settings?.customJs ?? ""}
+                placeholder="// Custom JS runs after widget loads"
+                autoComplete="off"
+                helpText="Use with caution — runs in the customer's browser"
+                error={actionData?.errors?.customJs}
+              />
+            </FormLayout>
+          </BlockStack>
+
+          <InlineStack align="end">
+            <Button submit variant="primary" loading={isSaving}>
+              Save General Settings
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Form>
+    </Box>
   );
 }

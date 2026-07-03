@@ -27,15 +27,14 @@ import {
   Card,
   Divider,
   FormLayout,
-  Frame,
   InlineStack,
   Modal,
   Select,
   Text,
   TextField,
-  Toast,
   Tooltip,
 } from "@shopify/polaris";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { useCallback, useEffect, useState } from "react";
 import { requireAdminAuth } from "~/middleware/auth.middleware";
 import { smsProviderService } from "~/services/sms-provider.service";
@@ -534,6 +533,7 @@ function ProviderModal({
 export default function ProvidersSettingsPage() {
   const loaderData = useLoaderData<typeof loader>();
   const deleteFetcher = useFetcher<ActionData>();
+  const shopify = useAppBridge();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] =
@@ -542,10 +542,6 @@ export default function ProvidersSettingsPage() {
     Record<string, TestResult>
   >({});
   const [testingCardId, setTestingCardId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{
-    message: string;
-    error?: boolean;
-  } | null>(null);
 
   const cardTestFetcher = useFetcher<ActionData>();
 
@@ -573,15 +569,12 @@ export default function ProvidersSettingsPage() {
   useEffect(() => {
     if (deleteFetcher.state === "idle" && deleteFetcher.data) {
       if (deleteFetcher.data.ok) {
-        setToast({ message: "Provider removed." });
+        shopify.toast.show("Provider removed.");
       } else {
-        setToast({
-          message: deleteFetcher.data.error ?? "Delete failed",
-          error: true,
-        });
+        shopify.toast.show(deleteFetcher.data.error ?? "Delete failed", { isError: true });
       }
     }
-  }, [deleteFetcher.state, deleteFetcher.data]);
+  }, [deleteFetcher.state, deleteFetcher.data, shopify]);
 
   const handleOpenAdd = useCallback(() => {
     setEditingProvider(null);
@@ -599,10 +592,8 @@ export default function ProvidersSettingsPage() {
   }, []);
 
   const handleSaved = useCallback(() => {
-    setToast({
-      message: editingProvider ? "Provider updated." : "Provider added.",
-    });
-  }, [editingProvider]);
+    shopify.toast.show(editingProvider ? "Provider updated." : "Provider added.");
+  }, [editingProvider, shopify]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -637,17 +628,7 @@ export default function ProvidersSettingsPage() {
   const { providers, atLimit, maxProviders, planName } = loaderData;
 
   return (
-    <Frame>
-      {toast && (
-        <Toast
-          content={toast.message}
-          error={toast.error}
-          onDismiss={() => setToast(null)}
-          duration={3000}
-        />
-      )}
-
-      <Box padding="400">
+    <Box padding="400">
         <BlockStack gap="400">
           {/* ── Header ── */}
           <InlineStack align="space-between" blockAlign="center">
@@ -750,6 +731,6 @@ export default function ProvidersSettingsPage() {
         onClose={handleClose}
         onSaved={handleSaved}
       />
-    </Frame>
+    </Box>
   );
 }

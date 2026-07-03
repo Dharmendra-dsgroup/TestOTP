@@ -223,14 +223,16 @@ export class OtpService {
       console.error("[OtpService] Failed to create OtpLog:", err);
     });
 
-    // 10. Load template from DB (or use default)
-    let template = defaultOtpTemplate(otpExpiry);
-    try {
-      const channelType: SmsTemplateType = channel === "email" ? "login" : "login";
-      const tmpl = await smsTemplateRepository.findDefault(shopDomain, channelType);
-      if (tmpl?.content) template = tmpl.content;
-    } catch {
-      // Use default template on failure
+    // 10. Load template — shop setting takes priority, then smsTemplates collection, then hardcoded default
+    let template = settings?.smsTemplate || defaultOtpTemplate(otpExpiry);
+    if (!settings?.smsTemplate) {
+      try {
+        const channelType: SmsTemplateType = channel === "email" ? "login" : "login";
+        const tmpl = await smsTemplateRepository.findDefault(shopDomain, channelType);
+        if (tmpl?.content) template = tmpl.content;
+      } catch {
+        // Use default template on failure
+      }
     }
 
     // 11. Encrypt OTP for safe storage in BullMQ (Redis)

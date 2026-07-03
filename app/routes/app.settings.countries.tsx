@@ -5,19 +5,18 @@ import {
   BlockStack,
   Box,
   Button,
-  Divider,
-  InlineStack,
-  Tag,
-  Text,
-  Toast,
-  Frame,
   Banner,
   Combobox,
-  Listbox,
+  Divider,
   Icon,
+  InlineStack,
+  Listbox,
+  Tag,
+  Text,
 } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
-import { useState, useCallback, useMemo } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { requireAdminAuth } from "~/middleware/auth.middleware";
 import { settingsService } from "~/services/settings.service";
 import { auditLogService } from "~/services/audit-log.service";
@@ -73,7 +72,6 @@ function CountryMultiSelect({
   selected,
   onChange,
   name,
-  tone,
 }: {
   label: string;
   helpText: string;
@@ -117,7 +115,6 @@ function CountryMultiSelect({
         {helpText}
       </Text>
 
-      {/* Hidden inputs for form submission */}
       {selected.map((code) => (
         <input key={code} type="hidden" name={name} value={code} />
       ))}
@@ -220,83 +217,75 @@ export default function CountriesSettings() {
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const shopify = useAppBridge();
 
   const isSaving = navigation.state === "submitting";
-  const [toastActive, setToastActive] = useState(false);
   const [allowed, setAllowed] = useState<string[]>(initAllowed);
   const [blocked, setBlocked] = useState<string[]>(initBlocked);
 
-  if (actionData?.success && !toastActive) {
-    setToastActive(true);
-  }
+  useEffect(() => {
+    if (actionData?.success) {
+      shopify.toast.show("Country settings saved");
+    }
+  }, [actionData, shopify]);
 
   return (
-    <Frame>
-      {toastActive && (
-        <Toast
-          content="Country settings saved"
-          onDismiss={() => setToastActive(false)}
-          duration={3000}
-        />
-      )}
-
-      <Box padding="600">
-        <Form method="post">
-          <BlockStack gap="600">
-            {actionData?.errors?.form && (
-              <Banner title="Save failed" tone="critical">
-                <Text as="p">{actionData.errors.form}</Text>
-              </Banner>
-            )}
-
-            <Banner title="How country lists work" tone="info">
-              <Text as="p" variant="bodyMd">
-                <strong>Allowed list</strong>: Only customers from these countries can request OTPs.
-                Leave empty to allow all countries.{" "}
-                <strong>Blocked list</strong>: Customers from these countries are always rejected.
-              </Text>
+    <Box padding="600">
+      <Form method="post">
+        <BlockStack gap="600">
+          {actionData?.errors?.form && (
+            <Banner title="Save failed" tone="critical">
+              <Text as="p">{actionData.errors.form}</Text>
             </Banner>
+          )}
 
-            {/* Allowed Countries */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Allowed Countries
-              </Text>
-              <Divider />
-              <CountryMultiSelect
-                label="Allowed countries"
-                helpText="Only OTP requests from these countries will be accepted. Empty = all countries allowed."
-                selected={allowed}
-                onChange={setAllowed}
-                name="allowedCountries"
-                tone="success"
-              />
-            </BlockStack>
+          <Banner title="How country lists work" tone="info">
+            <Text as="p" variant="bodyMd">
+              <strong>Allowed list</strong>: Only customers from these countries can request OTPs.
+              Leave empty to allow all countries.{" "}
+              <strong>Blocked list</strong>: Customers from these countries are always rejected.
+            </Text>
+          </Banner>
 
-            {/* Blocked Countries */}
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Blocked Countries
-              </Text>
-              <Divider />
-              <CountryMultiSelect
-                label="Blocked countries"
-                helpText="OTP requests from these countries will always be rejected."
-                selected={blocked}
-                onChange={setBlocked}
-                name="blockedCountries"
-                tone="critical"
-              />
-            </BlockStack>
-
-            <InlineStack align="end">
-              <Button submit variant="primary" loading={isSaving}>
-                Save Country Settings
-              </Button>
-            </InlineStack>
+          {/* Allowed Countries */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Allowed Countries
+            </Text>
+            <Divider />
+            <CountryMultiSelect
+              label="Allowed countries"
+              helpText="Only OTP requests from these countries will be accepted. Empty = all countries allowed."
+              selected={allowed}
+              onChange={setAllowed}
+              name="allowedCountries"
+              tone="success"
+            />
           </BlockStack>
-        </Form>
-      </Box>
-    </Frame>
+
+          {/* Blocked Countries */}
+          <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Blocked Countries
+            </Text>
+            <Divider />
+            <CountryMultiSelect
+              label="Blocked countries"
+              helpText="OTP requests from these countries will always be rejected."
+              selected={blocked}
+              onChange={setBlocked}
+              name="blockedCountries"
+              tone="critical"
+            />
+          </BlockStack>
+
+          <InlineStack align="end">
+            <Button submit variant="primary" loading={isSaving}>
+              Save Country Settings
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Form>
+    </Box>
   );
 }
