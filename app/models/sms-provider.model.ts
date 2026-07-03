@@ -19,7 +19,7 @@ const SmsProviderSchema = new Schema<ISmsProviderDocument>(
       enum: [
         "default", "twilio", "msg91", "textlocal", "aws_sns", "vonage",
         "exotel", "plivo", "kaleyra", "fast2sms", "gupshup", "infobip",
-        "clickatell", "generic_rest",
+        "clickatell", "generic_rest", "growwsaas",
       ],
       required: true,
     },
