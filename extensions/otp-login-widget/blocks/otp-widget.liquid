@@ -1,22 +1,37 @@
 {% comment %}
-  OTP Login Pro — Theme App Extension Block
-  Renders the OTP login widget and injects configuration for the JS widget.
+  OTP Login Pro — App Embed Block
+  target: body → appears in theme editor App Embeds panel with enable/disable toggle.
+  Injects on customer login and account pages automatically when enabled.
 {% endcomment %}
 
 {%- liquid
-  assign channel = block.settings.channel | default: 'sms'
-  assign widget_type = block.settings.widget_type | default: 'popup'
-  assign otp_length = block.settings.otp_length | default: 6
-  assign button_text = block.settings.button_text | default: 'Login with OTP'
-  assign brand_color = block.settings.brand_color | default: '#3B82F6'
-  assign dark_mode = block.settings.dark_mode | default: false
-  assign redirect_url = block.settings.redirect_url | default: '/account'
-  assign show_on_account_page = block.settings.show_on_account_page | default: false
+  assign channel       = block.settings.channel       | default: 'sms'
+  assign widget_type   = block.settings.widget_type   | default: 'popup'
+  assign otp_length    = block.settings.otp_length    | default: 6
+  assign button_text   = block.settings.button_text   | default: 'Login with OTP'
+  assign brand_color   = block.settings.brand_color   | default: '#3B82F6'
+  assign dark_mode     = block.settings.dark_mode     | default: false
+  assign redirect_url  = block.settings.redirect_url  | default: '/account'
+  assign show_on_login     = block.settings.show_on_login     | default: true
+  assign show_on_account   = block.settings.show_on_account   | default: false
+  assign show_on_all_pages = block.settings.show_on_all_pages | default: false
+
+  assign should_render = false
+  if show_on_all_pages
+    assign should_render = true
+  elsif show_on_login and request.page_type == 'customers/login'
+    assign should_render = true
+  elsif show_on_account and request.page_type == 'customers/account'
+    assign should_render = true
+  endif
+
+  if customer and show_on_login
+    assign should_render = false
+  endif
 -%}
 
-{%- comment %} Only render for guests on the account/login page when configured to replace it {%- endcomment %}
-{%- if show_on_account_page and customer -%}
-  {%- comment %} Customer is already logged in — do not show widget {%- endcomment %}
+{%- unless should_render -%}
+  {%- comment %} Page type not configured for widget — skip rendering {%- endcomment %}
 {%- else -%}
 
 {{ 'otp-widget.css' | asset_url | stylesheet_tag }}
@@ -28,14 +43,12 @@
   {{ block.shopify_attributes }}
 >
   {%- if widget_type == 'inline' -%}
-    {%- comment %} Inline: render the form directly, no trigger button {%- endcomment %}
     <div class="otp-lp-inline">
       <div class="otp-lp-modal" role="dialog" aria-label="{{ button_text }}">
         <div id="otp-lp-content-{{ block.id }}"></div>
       </div>
     </div>
   {%- else -%}
-    {%- comment %} Popup: trigger button + overlay {%- endcomment %}
     <button
       type="button"
       class="otp-lp-trigger"
@@ -89,14 +102,38 @@
 
 <script src="{{ 'otp-widget.js' | asset_url }}" defer></script>
 
-{%- endif -%}
+{%- endunless -%}
 
 {% schema %}
 {
-  "name": "OTP Login",
-  "target": "section",
-  "templates": ["customers/login", "customers/register", "index", "page"],
+  "name": "OTP Login Widget",
+  "target": "body",
   "settings": [
+    {
+      "type": "header",
+      "content": "Pages"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_login",
+      "label": "Show on Login page",
+      "default": true,
+      "info": "Injects the OTP widget on /account/login"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_account",
+      "label": "Show on Account page",
+      "default": false,
+      "info": "Injects the OTP widget on /account"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_all_pages",
+      "label": "Show on all pages",
+      "default": false,
+      "info": "Adds the trigger button site-wide (not recommended for most stores)"
+    },
     {
       "type": "header",
       "content": "Authentication"
@@ -107,9 +144,9 @@
       "label": "Login channel",
       "default": "sms",
       "options": [
-        { "value": "sms", "label": "SMS (Phone)" },
+        { "value": "sms",   "label": "SMS (Phone)" },
         { "value": "email", "label": "Email" },
-        { "value": "both", "label": "Customer's choice" }
+        { "value": "both",  "label": "Customer's choice" }
       ]
     },
     {
@@ -133,7 +170,7 @@
       "label": "Widget type",
       "default": "popup",
       "options": [
-        { "value": "popup", "label": "Popup (modal)" },
+        { "value": "popup",  "label": "Popup (modal)" },
         { "value": "inline", "label": "Inline (embedded)" }
       ]
     },
@@ -163,13 +200,7 @@
       "type": "url",
       "id": "redirect_url",
       "label": "Redirect after login",
-      "info": "Where to send the customer after successful login. Defaults to /account."
-    },
-    {
-      "type": "checkbox",
-      "id": "show_on_account_page",
-      "label": "Only show to guests (hide if logged in)",
-      "default": true
+      "info": "Where to send the customer after successful OTP login. Leave blank for /account."
     }
   ]
 }
