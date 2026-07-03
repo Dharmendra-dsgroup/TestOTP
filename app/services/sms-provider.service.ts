@@ -205,7 +205,7 @@ export class SmsProviderService {
         }
       }
 
-      const updated = await smsProviderRepository.update(
+      const updated = await smsProviderRepository.updateById(
         providerId,
         update as unknown as ISmsProviderDocument
       );
@@ -232,7 +232,7 @@ export class SmsProviderService {
 
       if (!existing) return serviceFailure("Provider not found", 404);
 
-      await smsProviderRepository.update(
+      await smsProviderRepository.updateById(
         providerId,
         { isActive: false } as unknown as ISmsProviderDocument
       );
@@ -329,7 +329,7 @@ export class SmsProviderService {
     const docs = await smsProviderRepository.findByShopOrdered(shopDomain);
     for (const doc of docs) {
       if (doc.role === role && doc._id.toString() !== excludeId) {
-        await smsProviderRepository.update(
+        await smsProviderRepository.updateById(
           doc._id.toString(),
           { role: "fallback" } as unknown as ISmsProviderDocument
         );
