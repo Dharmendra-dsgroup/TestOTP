@@ -81,7 +81,7 @@
     config[blockId] = {
       blockId: blockId,
       shop: shopDomain,
-      apiBase: window.location.protocol + '//' + shopDomain + '/apps/otp-login-pro',
+      apiBase: window.location.origin + '/apps/otp-login-pro',
       channel: {{ channel | json }},
       otpLength: {{ otp_length | times: 1 }},
       buttonText: {{ button_text | json }},
