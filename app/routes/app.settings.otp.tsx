@@ -62,6 +62,7 @@ export const action = async (args: ActionFunctionArgs) => {
     resendDelay: data.resendDelay,
     enableSmsOtp: data.enableSmsOtp,
     enableEmailOtp: data.enableEmailOtp,
+    smsTemplate: data.smsTemplate,
   });
 
   if (!result.success) {
@@ -191,6 +192,35 @@ export default function OtpSettings() {
                   helpText="Growth plan and above. Send OTP to customer's email address."
                 />
               </BlockStack>
+            </BlockStack>
+
+            {/* SMS Message Template */}
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                SMS Message Template
+              </Text>
+              <Divider />
+              <TextField
+                label="OTP Message"
+                name="smsTemplate"
+                multiline={3}
+                defaultValue={
+                  settings?.smsTemplate ??
+                  "Your OTP is {{otp}}. Valid for 5 minutes. Do not share."
+                }
+                helpText="Use {{otp}} where the code should appear. Keep under 160 characters for a single SMS."
+                autoComplete="off"
+                showCharacterCount
+                maxLength={320}
+                error={actionData?.errors?.smsTemplate}
+              />
+              <Text as="p" variant="bodySm" tone="subdued">
+                Example for DS Group:{" "}
+                <em>
+                  Dear User, Your OTP for logging to Rclub is {"{{otp}}"}. The OTP will
+                  remain valid for 5 minutes. Thank you, DS Group.
+                </em>
+              </Text>
             </BlockStack>
 
             <InlineStack align="end">

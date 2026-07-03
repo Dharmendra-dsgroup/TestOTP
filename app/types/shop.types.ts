@@ -45,6 +45,8 @@ export interface IShopSettings {
   autoBlockThreshold: number;
   /** Email domains blocked from receiving OTPs */
   blockedEmailDomains: string[];
+  /** SMS message template. Use {{otp}} for the code. */
+  smsTemplate?: string;
 }
 
 export interface IShopBilling {

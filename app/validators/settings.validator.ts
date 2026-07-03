@@ -55,6 +55,11 @@ export const otpSettingsSchema = z.object({
     .max(300, "Max 300 seconds"),
   enableSmsOtp: z.coerce.boolean(),
   enableEmailOtp: z.coerce.boolean(),
+  smsTemplate: z
+    .string()
+    .min(5, "Template must be at least 5 characters")
+    .max(320, "Template must be 320 characters or less")
+    .refine((v) => v.includes("{{otp}}"), "Template must include {{otp}}"),
 });
 
 export const securitySettingsSchema = z.object({

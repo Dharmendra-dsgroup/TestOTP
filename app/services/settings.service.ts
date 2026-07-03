@@ -56,6 +56,7 @@ export class SettingsService {
       | "resendDelay"
       | "enableSmsOtp"
       | "enableEmailOtp"
+      | "smsTemplate"
     >
   ): Promise<ServiceResult<IShopDocument["settings"]>> {
     try {

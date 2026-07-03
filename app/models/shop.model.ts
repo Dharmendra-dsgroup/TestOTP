@@ -46,6 +46,10 @@ const ShopSettingsSchema = new Schema<IShopSettings>(
     autoDetectCountry: { type: Boolean, default: true },
     captchaEnabled: { type: Boolean, default: false },
     vpnDetectionEnabled: { type: Boolean, default: false },
+    smsTemplate: {
+      type: String,
+      default: "Your OTP is {{otp}}. Valid for 5 minutes. Do not share.",
+    },
     // Shopify Plus — AES-256-GCM encrypted, select: false
     multipassSecret: { type: String, select: false },
     shopifyPlusEnabled: { type: Boolean, default: false },
