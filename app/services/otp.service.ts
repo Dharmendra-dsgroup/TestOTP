@@ -202,7 +202,9 @@ export class OtpService {
         email,
         channel,
       },
-      otpExpiry + 30 // Small buffer so Redis TTL >= OTP expiry
+      // TTL must outlive both the OTP expiry AND the resend window so that
+      // a resend click at exactly resendDelay seconds never races against expiry.
+      Math.max(otpExpiry + 30, resendDelay + 60)
     );
 
     // 9. Create OtpLog in MongoDB (status = "pending")
