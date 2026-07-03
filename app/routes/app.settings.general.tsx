@@ -96,6 +96,11 @@ export default function GeneralSettings() {
 
   const isSaving = navigation.state === "submitting";
   const [darkMode, setDarkMode] = useState(settings?.darkMode ?? false);
+  const [buttonText, setButtonText] = useState(settings?.buttonText ?? "Login with OTP");
+  const [brandColor, setBrandColor] = useState(settings?.brandColor ?? "");
+  const [logoUrl, setLogoUrl] = useState(settings?.logoUrl ?? "");
+  const [customCss, setCustomCss] = useState(settings?.customCss ?? "");
+  const [customJs, setCustomJs] = useState(settings?.customJs ?? "");
 
   useEffect(() => {
     if (actionData?.success) {
@@ -139,7 +144,8 @@ export default function GeneralSettings() {
               <TextField
                 label="Button Text"
                 name="buttonText"
-                defaultValue={settings?.buttonText ?? "Login with OTP"}
+                value={buttonText}
+                onChange={setButtonText}
                 maxLength={50}
                 showCharacterCount
                 autoComplete="off"
@@ -160,7 +166,8 @@ export default function GeneralSettings() {
                   label="Brand Color"
                   name="brandColor"
                   placeholder="#3B82F6"
-                  defaultValue={settings?.brandColor ?? ""}
+                  value={brandColor}
+                  onChange={setBrandColor}
                   autoComplete="off"
                   helpText="Hex color for buttons and accents (e.g. #FF5500)"
                   error={actionData?.errors?.brandColor}
@@ -169,7 +176,8 @@ export default function GeneralSettings() {
                   label="Logo URL"
                   name="logoUrl"
                   placeholder="https://cdn.example.com/logo.png"
-                  defaultValue={settings?.logoUrl ?? ""}
+                  value={logoUrl}
+                  onChange={setLogoUrl}
                   autoComplete="off"
                   error={actionData?.errors?.logoUrl}
                 />
@@ -212,7 +220,8 @@ export default function GeneralSettings() {
                 label="Custom CSS"
                 name="customCss"
                 multiline={6}
-                defaultValue={settings?.customCss ?? ""}
+                value={customCss}
+                onChange={setCustomCss}
                 placeholder="/* Add custom styles here */"
                 autoComplete="off"
                 helpText="Applied to the OTP widget only"
@@ -222,7 +231,8 @@ export default function GeneralSettings() {
                 label="Custom JavaScript"
                 name="customJs"
                 multiline={4}
-                defaultValue={settings?.customJs ?? ""}
+                value={customJs}
+                onChange={setCustomJs}
                 placeholder="// Custom JS runs after widget loads"
                 autoComplete="off"
                 helpText="Use with caution — runs in the customer's browser"

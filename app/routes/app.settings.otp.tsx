@@ -86,9 +86,9 @@ export default function OtpSettings() {
 
   const [smsEnabled, setSmsEnabled] = useState(settings?.enableSmsOtp ?? true);
   const [emailEnabled, setEmailEnabled] = useState(settings?.enableEmailOtp ?? false);
-  const [smsTemplate, setSmsTemplate] = useState(
-    settings?.smsTemplate ?? DEFAULT_TEMPLATE
-  );
+  const [smsTemplate, setSmsTemplate] = useState(settings?.smsTemplate ?? DEFAULT_TEMPLATE);
+  const [maxAttempts, setMaxAttempts] = useState(String(settings?.maxAttempts ?? 5));
+  const [resendDelay, setResendDelay] = useState(String(settings?.resendDelay ?? 30));
 
   useEffect(() => {
     if (actionData?.success) {
@@ -148,7 +148,8 @@ export default function OtpSettings() {
                   type="number"
                   min="1"
                   max="10"
-                  defaultValue={String(settings?.maxAttempts ?? 5)}
+                  value={maxAttempts}
+                  onChange={setMaxAttempts}
                   helpText="1–10. Customer is blocked after this many failed attempts."
                   autoComplete="off"
                   error={actionData?.errors?.maxAttempts}
@@ -159,7 +160,8 @@ export default function OtpSettings() {
                   type="number"
                   min="10"
                   max="300"
-                  defaultValue={String(settings?.resendDelay ?? 30)}
+                  value={resendDelay}
+                  onChange={setResendDelay}
                   helpText="10–300 seconds before customer can request a new OTP"
                   autoComplete="off"
                   error={actionData?.errors?.resendDelay}
