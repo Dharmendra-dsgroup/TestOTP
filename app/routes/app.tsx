@@ -15,7 +15,13 @@ export const links = () => [
 ];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  try {
+    await authenticate.admin(request);
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("[app.tsx] authenticate.admin threw non-Response error:", err);
+    throw err;
+  }
   return json({ apiKey: process.env.SHOPIFY_API_KEY ?? "" });
 };
 
@@ -43,7 +49,9 @@ export default function AppLayout() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  console.error("[app.tsx ErrorBoundary]", error);
+  return boundary.error(error);
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
