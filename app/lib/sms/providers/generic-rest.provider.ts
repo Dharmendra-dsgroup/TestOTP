@@ -189,9 +189,12 @@ export class GenericRestProvider implements ISmsProvider {
 
       clearTimeout(timer);
 
+      // Read body once — used for both success detection and error detail
+      let responseText = "";
       let json: unknown;
       try {
-        json = await resp.json();
+        responseText = await resp.text();
+        json = responseText ? JSON.parse(responseText) : {};
       } catch {
         json = {};
       }
@@ -206,17 +209,30 @@ export class GenericRestProvider implements ISmsProvider {
         ? String(deepGet(json, this.creds.messageIdPath) ?? "")
         : undefined;
 
+      if (!success) {
+        const detail = responseText ? `: ${responseText.slice(0, 400)}` : "";
+        const errorMessage = `HTTP ${resp.status}${detail}`;
+        console.error(`[GenericREST] SMS send failed — ${url} → ${errorMessage}`);
+        return {
+          success: false,
+          errorMessage,
+          provider: this.type,
+          latencyMs: Date.now() - start,
+        };
+      }
+
       return {
-        success,
+        success: true,
         messageId: messageId || undefined,
-        errorMessage: success ? undefined : `HTTP ${resp.status}`,
         provider: this.type,
         latencyMs: Date.now() - start,
       };
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      console.error(`[GenericREST] SMS send exception: ${errorMessage}`);
       return {
         success: false,
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        errorMessage,
         provider: this.type,
         latencyMs: Date.now() - start,
       };
@@ -234,23 +250,42 @@ export class GenericRestProvider implements ISmsProvider {
 
   async health(): Promise<HealthResult> {
     const start = Date.now();
+    const endpoint = this.creds.endpoint ?? "";
     try {
-      const resp = await fetch(this.creds.endpoint ?? "", {
-        method: "HEAD",
+      // Use GET instead of HEAD — many SMS APIs don't support HEAD and return 500.
+      // Any HTTP response (including 4xx) means the server is reachable.
+      // Only treat 5xx as unhealthy.
+      const resp = await fetch(endpoint, {
+        method: "GET",
         signal: AbortSignal.timeout(5_000),
       });
+
+      let detail = "";
+      if (resp.status >= 500) {
+        try { detail = `: ${(await resp.text()).slice(0, 200)}`; } catch { /* ignore */ }
+        const errorMessage = `HTTP ${resp.status}${detail}`;
+        console.error(`[GenericREST] Health check failed — ${endpoint} → ${errorMessage}`);
+        return {
+          healthy: false,
+          latencyMs: Date.now() - start,
+          provider: this.type,
+          errorMessage,
+        };
+      }
+
       return {
-        healthy: resp.status < 500,
+        healthy: true,
         latencyMs: Date.now() - start,
         provider: this.type,
-        errorMessage: resp.status >= 500 ? `HTTP ${resp.status}` : undefined,
       };
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown";
+      console.error(`[GenericREST] Health check exception — ${endpoint}: ${errorMessage}`);
       return {
         healthy: false,
         latencyMs: Date.now() - start,
         provider: this.type,
-        errorMessage: err instanceof Error ? err.message : "Unknown",
+        errorMessage,
       };
     }
   }
