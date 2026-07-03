@@ -252,27 +252,15 @@ export class GenericRestProvider implements ISmsProvider {
     const start = Date.now();
     const endpoint = this.creds.endpoint ?? "";
     try {
-      // Use GET instead of HEAD — many SMS APIs don't support HEAD and return 500.
-      // Any HTTP response (including 4xx) means the server is reachable.
-      // Only treat 5xx as unhealthy.
-      const resp = await fetch(endpoint, {
-        method: "GET",
+      // Health = server is network-reachable. We intentionally do NOT validate
+      // the response status: calling a send endpoint without required params will
+      // always return 4xx/5xx, which says nothing about whether the server is up.
+      // Only a caught exception (DNS failure, timeout, connection refused) means
+      // the server is truly unreachable.
+      await fetch(endpoint, {
+        method: "HEAD",
         signal: AbortSignal.timeout(5_000),
       });
-
-      let detail = "";
-      if (resp.status >= 500) {
-        try { detail = `: ${(await resp.text()).slice(0, 200)}`; } catch { /* ignore */ }
-        const errorMessage = `HTTP ${resp.status}${detail}`;
-        console.error(`[GenericREST] Health check failed — ${endpoint} → ${errorMessage}`);
-        return {
-          healthy: false,
-          latencyMs: Date.now() - start,
-          provider: this.type,
-          errorMessage,
-        };
-      }
-
       return {
         healthy: true,
         latencyMs: Date.now() - start,
@@ -280,7 +268,7 @@ export class GenericRestProvider implements ISmsProvider {
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown";
-      console.error(`[GenericREST] Health check exception — ${endpoint}: ${errorMessage}`);
+      console.error(`[GenericREST] Health check — server unreachable (${endpoint}): ${errorMessage}`);
       return {
         healthy: false,
         latencyMs: Date.now() - start,
