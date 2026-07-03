@@ -61,18 +61,24 @@ export class GrowwSaasProvider implements ISmsProvider {
   async sendMessage(to: string, message: string, _otp?: string): Promise<SmsResult> {
     const start = Date.now();
 
+    // GrowwSaaS expects 10-digit number only (strip +91 or 91 prefix)
+    let normalizedTo = to.startsWith("+") ? to.slice(1) : to;
+    if (normalizedTo.startsWith("91") && normalizedTo.length === 12) {
+      normalizedTo = normalizedTo.slice(2);
+    }
+
     const params = new URLSearchParams({
       username: this.username,
       password: this.password,
       unicode: "false",
       from: this.senderId,
-      to,
+      to: normalizedTo,
       text: message,
     });
 
     const url = `${this.endpoint}?${params.toString()}`;
 
-    console.info(`[GrowwSaaS] Sending SMS to ${to} via ${this.endpoint}`);
+    console.info(`[GrowwSaaS] Sending SMS to ${normalizedTo} via ${this.endpoint}`);
 
     try {
       const controller = new AbortController();
@@ -90,7 +96,7 @@ export class GrowwSaasProvider implements ISmsProvider {
 
       if (!resp.ok) {
         const errorMessage = `HTTP ${resp.status}: ${responseText.slice(0, 400)}`;
-        console.error(`[GrowwSaaS] Send failed to ${to}: ${errorMessage}`);
+        console.error(`[GrowwSaaS] Send failed to ${normalizedTo}: ${errorMessage}`);
         return {
           success: false,
           errorMessage,
@@ -99,7 +105,7 @@ export class GrowwSaasProvider implements ISmsProvider {
         };
       }
 
-      console.info(`[GrowwSaaS] SMS sent successfully to ${to} (${Date.now() - start}ms): ${responseText.slice(0, 200)}`);
+      console.info(`[GrowwSaaS] SMS sent successfully to ${normalizedTo} (${Date.now() - start}ms): ${responseText.slice(0, 200)}`);
       return {
         success: true,
         messageId: responseText.slice(0, 100) || undefined,
@@ -108,7 +114,7 @@ export class GrowwSaasProvider implements ISmsProvider {
       };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      console.error(`[GrowwSaaS] Network error sending to ${to}: ${errorMessage}`);
+      console.error(`[GrowwSaaS] Network error sending to ${normalizedTo}: ${errorMessage}`);
       return {
         success: false,
         errorMessage,
