@@ -76,7 +76,8 @@ export class GrowwSaasProvider implements ISmsProvider {
       text: message,
     });
 
-    const url = `${this.endpoint}?${params.toString()}`;
+    // URLSearchParams encodes spaces as '+'; GrowwSaaS requires '%20'
+    const url = `${this.endpoint}?${params.toString().replace(/\+/g, "%20")}`;
 
     console.info(`[GrowwSaaS] Sending SMS to ${normalizedTo} via ${this.endpoint}`);
 

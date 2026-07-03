@@ -238,46 +238,44 @@ export class OtpService {
       }
     }
 
-    // 11. Send OTP via SMS provider (synchronous — no queue worker required)
+    // 11. Set resend cooldown before firing SMS
+    await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
+
+    // 12. Fire SMS in background — OTP is already stored, don't block the response
     const smsVariables = {
       store: shopDoc.shopName ?? shopDomain,
       phone: maskedDestination,
       appName: env.APP_NAME,
     };
 
-    const smsResult = await providerResolver.sendOtp(
+    void providerResolver.sendOtp(
       shopDomain,
       destination,
       generated.code,
       template,
       smsVariables
-    );
-
-    if (!smsResult.success) {
-      const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
-      console.error(`[OtpService] SMS send failed for ${shopDomain}: ${errMsg}`);
-      await otpLogRepository.updateStatus(generated.requestId, "failed", {
-        errorCode: "SMS_SEND_FAILED",
-        errorMessage: errMsg,
-      }).catch(() => {});
-      void analyticsService.record(shopDomain, { otpFailed: 1, smsFailed: 1 });
-      return serviceFailure(`Failed to send OTP: ${errMsg}`, 500);
-    }
-
-    await otpLogRepository.updateStatus(generated.requestId, "sent", {
-      smsProvider: smsResult.providerName ?? smsResult.provider,
-      smsSid: smsResult.messageId,
-    }).catch(() => {});
-
-    // 12. Set resend cooldown
-    await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
+    ).then((smsResult) => {
+      if (!smsResult.success) {
+        const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
+        console.error(`[OtpService] SMS send failed for ${shopDomain}: ${errMsg}`);
+        void otpLogRepository.updateStatus(generated.requestId, "failed", {
+          errorCode: "SMS_SEND_FAILED",
+          errorMessage: errMsg,
+        }).catch(() => {});
+        void analyticsService.record(shopDomain, { otpFailed: 1, smsFailed: 1 });
+      } else {
+        console.info(`[OtpService] SMS sent for ${shopDomain} via ${smsResult.provider}`);
+        void otpLogRepository.updateStatus(generated.requestId, "sent", {
+          smsProvider: smsResult.providerName ?? smsResult.provider,
+          smsSid: smsResult.messageId,
+        }).catch(() => {});
+      }
+    }).catch((err) => {
+      console.error(`[OtpService] SMS send threw for ${shopDomain}:`, err);
+    });
 
     // 13. Record analytics (fire-and-forget)
-    void analyticsService.record(
-      shopDomain,
-      { otpRequested: 1 },
-      countryCode
-    );
+    void analyticsService.record(shopDomain, { otpRequested: 1 }, countryCode);
 
     return serviceSuccess({
       requestId: generated.requestId,
@@ -450,7 +448,9 @@ export class OtpService {
       ? maskPhone(oldEntry.phone)
       : maskEmail(oldEntry.email ?? "");
 
-    const smsResult = await providerResolver.sendOtp(
+    await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
+
+    void providerResolver.sendOtp(
       shopDomain,
       destination,
       generated.code,
@@ -460,24 +460,24 @@ export class OtpService {
         phone: maskedDest,
         appName: env.APP_NAME,
       }
-    );
+    ).then((smsResult) => {
+      if (!smsResult.success) {
+        const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
+        console.error(`[OtpService] Resend SMS failed for ${shopDomain}: ${errMsg}`);
+        void otpLogRepository.updateStatus(generated.requestId, "failed", {
+          errorCode: "SMS_SEND_FAILED",
+          errorMessage: errMsg,
+        }).catch(() => {});
+      } else {
+        void otpLogRepository.updateStatus(generated.requestId, "sent", {
+          smsProvider: smsResult.providerName ?? smsResult.provider,
+          smsSid: smsResult.messageId,
+        }).catch(() => {});
+      }
+    }).catch((err) => {
+      console.error(`[OtpService] Resend SMS threw for ${shopDomain}:`, err);
+    });
 
-    if (!smsResult.success) {
-      const errMsg = smsResult.errorMessage ?? "SMS delivery failed";
-      console.error(`[OtpService] Resend SMS failed for ${shopDomain}: ${errMsg}`);
-      await otpLogRepository.updateStatus(generated.requestId, "failed", {
-        errorCode: "SMS_SEND_FAILED",
-        errorMessage: errMsg,
-      }).catch(() => {});
-      return serviceFailure(`Failed to resend OTP: ${errMsg}`, 500);
-    }
-
-    await otpLogRepository.updateStatus(generated.requestId, "sent", {
-      smsProvider: smsResult.providerName ?? smsResult.provider,
-      smsSid: smsResult.messageId,
-    }).catch(() => {});
-
-    await otpRateLimiter.setResendCooldown(shopDomain, destination, resendDelay).catch(() => {});
     void analyticsService.record(shopDomain, { otpRequested: 1 });
 
     return serviceSuccess({
