@@ -1,6 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Outlet, useLoaderData, useRouteError } from "@remix-run/react";
+import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { AppProvider as PolarisProvider } from "@shopify/polaris";
@@ -29,13 +29,13 @@ export default function AppLayout() {
       <PolarisProvider i18n={enTranslations}>
         <PolarisVizProvider>
           <NavMenu>
-            <a href="/app" rel="home">
+            <Link to="/app" rel="home">
               Dashboard
-            </a>
-            <a href="/app/settings">Settings</a>
-            <a href="/app/analytics">Analytics</a>
-            <a href="/app/security">Security</a>
-            <a href="/app/billing">Billing</a>
+            </Link>
+            <Link to="/app/settings">Settings</Link>
+            <Link to="/app/analytics">Analytics</Link>
+            <Link to="/app/security">Security</Link>
+            <Link to="/app/billing">Billing</Link>
           </NavMenu>
           <Outlet />
         </PolarisVizProvider>
