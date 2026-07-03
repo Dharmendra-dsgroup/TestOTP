@@ -269,6 +269,8 @@
         self.expiresAt = data.expiresAt ? new Date(data.expiresAt).getTime() : null;
         self.maskedDestination = data.maskedDestination || value;
         self.resendDelay = data.resendDelay || DEFAULT_RESEND_DELAY;
+        // Use server-returned otpLength so widget boxes match what was actually generated
+        if (data.otpLength) self.cfg.otpLength = data.otpLength;
         self._currentChannel = channel;
         self._currentValue = value;
         self._renderOtpStep();

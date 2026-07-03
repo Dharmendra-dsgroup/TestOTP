@@ -55,6 +55,7 @@ export interface OtpGenerateResponse {
   resendDelay: number;
   maskedDestination: string;
   channel: OTP_CHANNEL;
+  otpLength: number;
 }
 
 export interface OtpVerifyRequest {
@@ -272,6 +273,7 @@ export class OtpService {
       resendDelay,
       maskedDestination,
       channel,
+      otpLength,
     });
   }
 

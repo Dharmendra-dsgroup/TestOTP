@@ -84,6 +84,8 @@ export default function OtpSettings() {
 
   const isSaving = navigation.state === "submitting";
 
+  const [otpLength, setOtpLength] = useState(String(settings?.otpLength ?? 6));
+  const [otpExpiry, setOtpExpiry] = useState(String(settings?.otpExpiry ?? 120));
   const [smsEnabled, setSmsEnabled] = useState(settings?.enableSmsOtp ?? true);
   const [emailEnabled, setEmailEnabled] = useState(settings?.enableEmailOtp ?? false);
   const [smsTemplate, setSmsTemplate] = useState(settings?.smsTemplate ?? DEFAULT_TEMPLATE);
@@ -118,7 +120,8 @@ export default function OtpSettings() {
                   label="OTP Length"
                   name="otpLength"
                   options={OTP_LENGTH_OPTIONS}
-                  defaultValue={String(settings?.otpLength ?? 6)}
+                  value={otpLength}
+                  onChange={setOtpLength}
                   helpText="Longer codes are more secure"
                   error={actionData?.errors?.otpLength}
                 />
@@ -126,7 +129,8 @@ export default function OtpSettings() {
                   label="OTP Expiry"
                   name="otpExpiry"
                   options={OTP_EXPIRY_OPTIONS}
-                  defaultValue={String(settings?.otpExpiry ?? 120)}
+                  value={otpExpiry}
+                  onChange={setOtpExpiry}
                   helpText="Time before OTP becomes invalid"
                   error={actionData?.errors?.otpExpiry}
                 />
