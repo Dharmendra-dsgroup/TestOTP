@@ -1,4 +1,4 @@
-import Redis, { type RedisOptions } from "ioredis";
+import Redis from "ioredis";
 import { env } from "./env";
 
 interface RedisCache {
@@ -11,76 +11,25 @@ declare global {
 }
 
 const cached: RedisCache = global.__redis ?? { client: null };
-
-if (!global.__redis) {
-  global.__redis = cached;
-}
-
-function buildRedisOptions(): RedisOptions {
-  const isTls = env.REDIS_URL.startsWith("rediss://");
-
-  const base: RedisOptions = {
-    maxRetriesPerRequest: 3,
-    enableReadyCheck: false,   // must be false for Upstash serverless Redis
-    lazyConnect: true,
-    connectTimeout: 10_000,
-    commandTimeout: 5_000,
-    // rejectUnauthorized:false needed on Alpine Linux — its CA bundle
-    // doesn't include all intermediates required by Upstash's cert chain
-    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
-    reconnectOnError: (err) => {
-      const retriable = ["READONLY", "ECONNREFUSED", "ECONNRESET"];
-      return retriable.some((msg) => err.message.includes(msg));
-    },
-    retryStrategy: (times) => {
-      if (times > 10) {
-        console.error("[Redis] Max retry attempts exceeded");
-        return null;
-      }
-      const delay = Math.min(times * 200, 5_000);
-      console.warn(`[Redis] Retry attempt ${times}, delay: ${delay}ms`);
-      return delay;
-    },
-  };
-
-  if (env.REDIS_PASSWORD) {
-    return { ...base, password: env.REDIS_PASSWORD };
-  }
-
-  return base;
-}
+if (!global.__redis) global.__redis = cached;
 
 export function getRedisClient(): Redis {
   if (cached.client && cached.client.status !== "end") {
     return cached.client;
   }
 
-  cached.client = new Redis(env.REDIS_URL, buildRedisOptions());
+  const isTls = env.REDIS_URL.startsWith("rediss://");
 
-  cached.client.on("connect", () => {
-    console.info("[Redis] Connecting...");
+  // Minimal options — complex retry/timeout options interfere with Upstash TLS
+  cached.client = new Redis(env.REDIS_URL, {
+    enableReadyCheck: false,
+    maxRetriesPerRequest: 1,
+    ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
   });
 
-  cached.client.on("ready", () => {
-    console.info("[Redis] Ready");
-  });
-
-  cached.client.on("error", (error: unknown) => {
-    console.error("[Redis] Error:", error);
-  });
-
-  cached.client.on("close", () => {
-    console.warn("[Redis] Connection closed");
-  });
-
-  cached.client.on("reconnecting", () => {
-    console.warn("[Redis] Reconnecting...");
-  });
-
-  cached.client.on("end", () => {
-    console.warn("[Redis] Connection ended");
-    cached.client = null;
-  });
+  cached.client.on("ready",        () => console.info("[Redis] Ready"));
+  cached.client.on("error", (err)  => console.error("[Redis] Error:", err));
+  cached.client.on("end",   ()     => { cached.client = null; });
 
   return cached.client;
 }
@@ -89,18 +38,14 @@ export async function disconnectRedis(): Promise<void> {
   if (cached.client) {
     await cached.client.quit();
     cached.client = null;
-    console.info("[Redis] Disconnected");
   }
 }
 
 export async function pingRedis(): Promise<boolean> {
   const client = getRedisClient();
-  if (client.status === "wait") {
-    await client.connect();
-  }
   const response = await client.ping();
   if (response !== "PONG") {
-    throw new Error(`PING returned: ${JSON.stringify(response)}, client status: ${client.status}`);
+    throw new Error(`PING returned: ${JSON.stringify(response)}`);
   }
   return true;
 }

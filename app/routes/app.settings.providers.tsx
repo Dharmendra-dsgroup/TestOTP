@@ -723,14 +723,13 @@ export default function ProvidersSettingsPage() {
             </>
           )}
         </BlockStack>
-      </Box>
 
-      <ProviderModal
-        open={modalOpen}
-        editing={editingProvider}
-        onClose={handleClose}
-        onSaved={handleSaved}
-      />
-    </Box>
+        <ProviderModal
+          open={modalOpen}
+          editing={editingProvider}
+          onClose={handleClose}
+          onSaved={handleSaved}
+        />
+      </Box>
   );
 }
