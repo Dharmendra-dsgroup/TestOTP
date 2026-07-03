@@ -14,7 +14,8 @@ export type SmsProviderType =
   | "gupshup"
   | "infobip"
   | "clickatell"
-  | "generic_rest";
+  | "generic_rest"
+  | "growwsaas";
 
 export type SmsProviderRole = "primary" | "secondary" | "fallback";
 export type SmsProviderStatus = "active" | "inactive" | "error" | "rate_limited";

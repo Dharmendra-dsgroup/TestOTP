@@ -371,6 +371,46 @@ export const PROVIDER_CONFIGS: Partial<Record<SmsProviderType, ProviderConfig>> 
     ],
   },
 
+  growwsaas: {
+    label: "GrowwSaaS SMS",
+    description: "India SMS via GrowwSaaS OTP gateway",
+    fields: [
+      {
+        key: "username",
+        label: "Username",
+        required: true,
+        sensitive: false,
+        placeholder: "your_growwsaas_username",
+        helpText: "Your GrowwSaaS account username",
+      },
+      {
+        key: "password",
+        label: "Password",
+        required: true,
+        sensitive: true,
+        placeholder: "••••••••",
+        helpText: "Your GrowwSaaS account password",
+      },
+      {
+        key: "senderId",
+        label: "Sender ID (From)",
+        required: true,
+        sensitive: false,
+        placeholder: "DSRB",
+        helpText: "DLT-approved sender header (e.g. DSRB)",
+      },
+      {
+        key: "endpoint",
+        label: "API Endpoint (optional)",
+        required: false,
+        sensitive: false,
+        placeholder: "https://otp.growwsaas.com/fe/api/v1/send",
+        default: "https://otp.growwsaas.com/fe/api/v1/send",
+        helpText: "Leave blank to use default GrowwSaaS endpoint",
+      },
+    ],
+  },
+
   generic_rest: {
     label: "Generic REST / Custom HTTP",
     description: "Any HTTP SMS API — GET query params or POST JSON/form",

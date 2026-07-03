@@ -14,6 +14,7 @@ import { TwilioProvider } from "./providers/twilio.provider";
 import { Msg91Provider } from "./providers/msg91.provider";
 import { TextLocalProvider } from "./providers/textlocal.provider";
 import { GenericRestProvider } from "./providers/generic-rest.provider";
+import { GrowwSaasProvider } from "./providers/growwsaas.provider";
 
 /**
  * Creates an ISmsProvider instance for the given type with decrypted credentials.
@@ -40,6 +41,9 @@ export function createProvider(
 
     case "generic_rest":
       return new GenericRestProvider(credentials, displayName);
+
+    case "growwsaas":
+      return new GrowwSaasProvider(credentials, displayName);
 
     // Future providers — fall through to GenericRestProvider with preset endpoint
     case "aws_sns":
