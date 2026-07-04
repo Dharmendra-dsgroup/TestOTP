@@ -59,14 +59,6 @@ const GQL_ACTIVATION_URL = `
   }
 `;
 
-const GQL_CUSTOMER_UPDATE_PASSWORD = `
-  mutation CustomerUpdate($input: CustomerInput!) {
-    customerUpdate(input: $input) {
-      customer { id email }
-      userErrors { field message }
-    }
-  }
-`;
 
 interface ShopifyCustomerNode {
   id: string;
@@ -86,10 +78,7 @@ export interface CustomerLoginResult {
   lastName?: string;
   isNew: boolean;
   loginUrl: string;
-  loginMethod: "activation_url" | "multipass" | "auto_form";
-  /** Only set when loginMethod === "auto_form" */
-  autoFormPassword?: string;
-  autoFormReturnTo?: string;
+  loginMethod: "activation_url" | "multipass";
 }
 
 export class CustomerService {
@@ -273,8 +262,6 @@ export class CustomerService {
       isNew,
       loginUrl: loginResult.url,
       loginMethod: loginResult.method,
-      autoFormPassword: loginResult.method === "auto_form" ? (loginResult as { password: string }).password : undefined,
-      autoFormReturnTo: loginResult.method === "auto_form" ? loginResult.url : undefined,
     });
   }
 
@@ -379,10 +366,10 @@ export class CustomerService {
 
       const result = data?.customerGenerateAccountActivationUrl;
 
-      // Already-enabled customer — fall through to temp-password auto-form
+      // Already-enabled customer — fall back to REST API activation URL
       if (result?.userErrors?.some((e) => e.message.toLowerCase().includes("already enabled"))) {
-        console.info("[CustomerService] Customer already enabled, using auto-form login");
-        return this.buildAutoFormLogin(apiUrl, token, customer, returnTo);
+        console.info("[CustomerService] Customer already enabled, trying REST activation URL");
+        return this.buildActivationUrlViaRest(shopDomain, token, customer.id, returnTo);
       }
 
       if (result?.userErrors?.length) {
@@ -404,41 +391,44 @@ export class CustomerService {
     }
   }
 
-  private async buildAutoFormLogin(
-    apiUrl: string,
+  private async buildActivationUrlViaRest(
+    shopDomain: string,
     token: string,
-    customer: ShopifyCustomerNode,
+    customerId: string,
     returnTo: string
-  ): Promise<{ url: string; method: "auto_form"; password: string } | null> {
-    if (!customer.email) {
-      console.error("[CustomerService] Auto-form login requires email; customer has none:", customer.id);
-      return null;
-    }
-
-    // Generate a cryptographically random temporary password
-    const { randomBytes } = await import("node:crypto");
-    const tempPassword = randomBytes(24).toString("base64url");
-
+  ): Promise<{ url: string; method: "activation_url" } | null> {
     try {
-      const data = await this.adminGql<{
-        customerUpdate: { customer: { id: string } | null; userErrors: { message: string }[] };
-      }>(apiUrl, token, GQL_CUSTOMER_UPDATE_PASSWORD, {
-        input: {
-          id: customer.id,
-          password: tempPassword,
-          passwordConfirmation: tempPassword,
+      const numericId = customerId.split("/").pop() ?? customerId;
+      const restUrl = `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/customers/${numericId}/account_activation_url.json`;
+
+      const resp = await fetch(restUrl, {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": token,
+          "Content-Type": "application/json",
         },
+        body: "{}",
       });
 
-      if (data?.customerUpdate?.userErrors?.length) {
-        console.error("[CustomerService] Set temp password error:", data.customerUpdate.userErrors[0]?.message);
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        console.error(`[CustomerService] REST activation URL HTTP ${resp.status}: ${body.slice(0, 200)}`);
         return null;
       }
 
-      console.info("[CustomerService] Temp password set for auto-form login:", customer.id);
-      return { url: returnTo, method: "auto_form" as const, password: tempPassword };
+      const json = (await resp.json()) as { account_activation_url?: string };
+      const activationUrl = json.account_activation_url;
+      if (!activationUrl) {
+        console.error("[CustomerService] REST activation URL returned no URL");
+        return null;
+      }
+
+      const url = new URL(activationUrl);
+      if (returnTo && returnTo !== "/account") url.searchParams.set("return_to", returnTo);
+      console.info("[CustomerService] REST activation URL generated for enabled customer");
+      return { url: url.toString(), method: "activation_url" as const };
     } catch (err) {
-      console.error("[CustomerService] buildAutoFormLogin failed:", err);
+      console.error("[CustomerService] buildActivationUrlViaRest failed:", err);
       return null;
     }
   }
