@@ -22,7 +22,7 @@ const SHOPIFY_API_VERSION = "2025-01";
 // ─── Admin GraphQL fragments ──────────────────────────────────────────────────
 
 const CUSTOMER_FIELDS = `
-  id email phone firstName lastName state acceptsMarketing tags
+  id email phone firstName lastName state tags
 `;
 
 const GQL_SEARCH_BY_PHONE = `
@@ -66,7 +66,6 @@ interface ShopifyCustomerNode {
   firstName?: string;
   lastName?: string;
   state?: string;
-  acceptsMarketing?: boolean;
   tags?: string[];
 }
 
