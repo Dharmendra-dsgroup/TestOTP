@@ -440,7 +440,7 @@ export class OtpService {
     // 7. Load template and send SMS directly
     let template = defaultOtpTemplate(otpExpiry);
     try {
-      const tmpl = await smsTemplateRepository.findDefaultForShop(shopDomain, oldEntry.channel);
+      const tmpl = await smsTemplateRepository.findDefault(shopDomain, "login");
       if (tmpl?.content) template = tmpl.content;
     } catch {/* use default */}
 
