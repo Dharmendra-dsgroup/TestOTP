@@ -146,6 +146,26 @@ export class ShopRepository extends BaseRepository<IShopDocument> {
       .find({ isInstalled: true, isActive: true })
       .exec();
   }
+
+  async findByDomainWithMultipassSecret(
+    shopDomain: string
+  ): Promise<IShopDocument | null> {
+    await connectToDatabase();
+    return this.model
+      .findOne({ shopDomain: shopDomain.toLowerCase() })
+      .select("+settings.multipassSecret")
+      .exec();
+  }
+
+  async clearSettingField(shopDomain: string, field: string): Promise<void> {
+    await connectToDatabase();
+    await this.model
+      .updateOne(
+        { shopDomain: shopDomain.toLowerCase() },
+        { $unset: { [`settings.${field}`]: 1 } }
+      )
+      .exec();
+  }
 }
 
 export const shopRepository = new ShopRepository();

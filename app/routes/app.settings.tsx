@@ -17,6 +17,7 @@ const TABS = [
   { id: "security", content: "Security", path: "/app/settings/security" },
   { id: "countries", content: "Countries", path: "/app/settings/countries" },
   { id: "providers", content: "SMS Providers", path: "/app/settings/providers" },
+  { id: "multipass", content: "Shopify Plus", path: "/app/settings/multipass" },
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

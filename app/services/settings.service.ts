@@ -8,6 +8,12 @@ import {
   serviceSuccess,
   serviceFailure,
 } from "~/types/common.types";
+import { encrypt, decrypt } from "~/utils/crypto";
+import { env } from "~/config/env";
+import {
+  generateMultipassToken,
+  buildMultipassUrl,
+} from "~/lib/shopify/multipass.server";
 
 export class SettingsService {
   async getShopSettings(shopDomain: string): Promise<ServiceResult<IShopDocument["settings"]>> {
@@ -121,6 +127,59 @@ export class SettingsService {
     } catch (error) {
       console.error("[SettingsService] updateCountrySettings failed:", error);
       return serviceFailure("Failed to update country settings", 500);
+    }
+  }
+
+  async updateMultipassSettings(
+    shopDomain: string,
+    data: { shopifyPlusEnabled: boolean; multipassSecret?: string }
+  ): Promise<ServiceResult<IShopDocument["settings"]>> {
+    try {
+      const update: Partial<ShopSettingsUpdateInput> = {
+        shopifyPlusEnabled: data.shopifyPlusEnabled,
+      };
+      if (data.multipassSecret?.trim()) {
+        update.multipassSecret = encrypt(data.multipassSecret.trim(), env.ENCRYPTION_KEY);
+      }
+      const shop = await shopRepository.updateSettings(shopDomain, update);
+      if (!shop) return serviceFailure("Shop not found", 404);
+      return serviceSuccess(shop.settings);
+    } catch (error) {
+      console.error("[SettingsService] updateMultipassSettings failed:", error);
+      return serviceFailure("Failed to update Multipass settings", 500);
+    }
+  }
+
+  async clearMultipassSecret(shopDomain: string): Promise<ServiceResult<void>> {
+    try {
+      await shopRepository.clearSettingField(shopDomain, "multipassSecret");
+      await shopRepository.updateSettings(shopDomain, { shopifyPlusEnabled: false });
+      return serviceSuccess(undefined);
+    } catch (error) {
+      console.error("[SettingsService] clearMultipassSecret failed:", error);
+      return serviceFailure("Failed to clear Multipass secret", 500);
+    }
+  }
+
+  async getMultipassTestUrl(shopDomain: string): Promise<ServiceResult<string>> {
+    try {
+      const shop = await shopRepository.findByDomainWithMultipassSecret(shopDomain);
+      if (!shop?.settings?.multipassSecret) {
+        return serviceFailure("No Multipass secret configured. Save a secret first.", 400);
+      }
+      const plainSecret = decrypt(shop.settings.multipassSecret, env.ENCRYPTION_KEY);
+      const token = generateMultipassToken(
+        {
+          email: "test@multipass-verify.example.com",
+          created_at: new Date().toISOString(),
+          return_to: "/account",
+        },
+        plainSecret
+      );
+      return serviceSuccess(buildMultipassUrl(shopDomain, token));
+    } catch (error) {
+      console.error("[SettingsService] getMultipassTestUrl failed:", error);
+      return serviceFailure("Failed to generate test URL — check your secret is correct", 500);
     }
   }
 

@@ -7,6 +7,7 @@ import {
   buildMultipassUrl,
   type MultipassCustomerData,
 } from "~/lib/shopify/multipass.server";
+import { startOAuthFlow } from "~/lib/shopify/customer-account-oauth.server";
 import { env } from "~/config/env";
 import type { ICustomerDocument } from "~/models/customer.model";
 import type { CustomerCreateInput } from "~/types/customer.types";
@@ -78,7 +79,7 @@ export interface CustomerLoginResult {
   lastName?: string;
   isNew: boolean;
   loginUrl: string;
-  loginMethod: "activation_url" | "multipass";
+  loginMethod: "activation_url" | "multipass" | "customer_account_api";
 }
 
 export class CustomerService {
@@ -333,13 +334,25 @@ export class CustomerService {
     isPlus: boolean,
     encryptedMultipassSecret: string | undefined,
     returnTo: string
-  ): Promise<{ url: string; method: "activation_url" | "multipass" } | null> {
+  ): Promise<{ url: string; method: "activation_url" | "multipass" | "customer_account_api" } | null> {
     // ENABLED customers on non-Plus: Shopify 2024+ removed all programmatic
-    // login APIs for this state. Skip straight to login-page redirect.
+    // login APIs. Use the Customer Account API OAuth/PKCE flow instead.
+    // Requires the store to have "New Customer Accounts" enabled in Shopify admin.
     if (customer.state === "ENABLED" && !isPlus) {
-      console.info("[CustomerService] ENABLED customer on non-Plus — redirecting to /account/login");
-      const hint = customer.email ? `?email=${encodeURIComponent(customer.email)}` : "";
-      return { url: `/account/login${hint}`, method: "activation_url" as const };
+      console.info("[CustomerService] ENABLED customer — starting Customer Account API OAuth flow");
+      try {
+        const oauthUrl = await startOAuthFlow({
+          shopDomain,
+          returnTo,
+          phone: customer.phone,
+          email: customer.email,
+        });
+        return { url: oauthUrl, method: "customer_account_api" as const };
+      } catch (err) {
+        console.error("[CustomerService] CAA OAuth flow setup failed, falling back to login page:", err);
+        const hint = customer.email ? `?email=${encodeURIComponent(customer.email)}` : "";
+        return { url: `/account/login${hint}`, method: "activation_url" as const };
+      }
     }
 
     // Multipass: Plus stores with secret + customer has email
