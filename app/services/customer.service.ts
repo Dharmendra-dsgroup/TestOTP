@@ -206,11 +206,13 @@ export class CustomerService {
   ): Promise<ServiceResult<CustomerLoginResult>> {
     const shopDoc = await shopRepository.findByDomainWithToken(shopDomain);
     if (!shopDoc?.accessToken) {
+      console.error(`[CustomerService] No access token for shop: ${shopDomain}`);
       return serviceFailure("Shop access token not available", 500);
     }
 
     const accessToken = shopDoc.accessToken;
     const apiUrl = `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
+    console.info(`[CustomerService] Using Admin API: ${apiUrl} | token length: ${accessToken.length}`);
 
     // Find existing customer
     let customer: ShopifyCustomerNode | null = null;
@@ -421,9 +423,18 @@ export class CustomerService {
       },
       body: JSON.stringify({ query, variables }),
     });
-    if (!resp.ok) throw new Error(`Shopify Admin API HTTP ${resp.status}`);
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      console.error(`[CustomerService] Shopify Admin API HTTP ${resp.status} from ${apiUrl}: ${body.slice(0, 500)}`);
+      throw new Error(`Shopify Admin API HTTP ${resp.status}: ${body.slice(0, 200)}`);
+    }
+
     const json = (await resp.json()) as { data?: T; errors?: unknown[] };
-    if (json.errors?.length) throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
+    if (json.errors?.length) {
+      console.error(`[CustomerService] GraphQL errors:`, JSON.stringify(json.errors));
+      throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
+    }
     return json.data ?? null;
   }
 }
