@@ -75,8 +75,55 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return redirect(`/account?login_error=login_failed`);
   }
 
-  const { loginUrl } = result.data;
+  const { loginUrl, loginMethod, email, autoFormPassword, autoFormReturnTo } = result.data;
 
-  // 4. Redirect to Shopify's activation/multipass URL
+  // 4a. Already-enabled customer — serve an auto-submit login form
+  //     (The page runs at the store domain via App Proxy, so it can POST to /account/login)
+  if (loginMethod === "auto_form" && email && autoFormPassword) {
+    const safeEmail = email.replace(/"/g, "&quot;");
+    const safePassword = autoFormPassword.replace(/"/g, "&quot;");
+    const safeReturn = (autoFormReturnTo ?? "/account").replace(/"/g, "&quot;");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Signing you in…</title></head>
+<body>
+<p style="font-family:sans-serif;text-align:center;margin-top:20vh">Signing you in…</p>
+<script>
+(async function () {
+  try {
+    var res = await fetch('/account/login', { credentials: 'same-origin' });
+    var text = await res.text();
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(text, 'text/html');
+    var csrf = (doc.querySelector('input[name="authenticity_token"]') || {}).value || '';
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/account/login';
+    [['form_type','customer_login'],['utf8','✓'],['authenticity_token',csrf],
+     ['customer[email]',"${safeEmail}"],['customer[password]',"${safePassword}"],
+     ['return_url',"${safeReturn}"]
+    ].forEach(function(p){
+      var i = document.createElement('input');
+      i.type = 'hidden'; i.name = p[0]; i.value = p[1];
+      form.appendChild(i);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  } catch(e) {
+    window.location.href = '/account/login';
+  }
+})();
+</script>
+</body>
+</html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+
+  // 4b. Redirect to Shopify's activation/multipass URL
   return redirect(loginUrl, { status: 302 });
 };

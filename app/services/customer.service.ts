@@ -59,6 +59,15 @@ const GQL_ACTIVATION_URL = `
   }
 `;
 
+const GQL_CUSTOMER_UPDATE_PASSWORD = `
+  mutation CustomerUpdate($input: CustomerInput!) {
+    customerUpdate(input: $input) {
+      customer { id email }
+      userErrors { field message }
+    }
+  }
+`;
+
 interface ShopifyCustomerNode {
   id: string;
   email?: string;
@@ -77,7 +86,10 @@ export interface CustomerLoginResult {
   lastName?: string;
   isNew: boolean;
   loginUrl: string;
-  loginMethod: "activation_url" | "multipass";
+  loginMethod: "activation_url" | "multipass" | "auto_form";
+  /** Only set when loginMethod === "auto_form" */
+  autoFormPassword?: string;
+  autoFormReturnTo?: string;
 }
 
 export class CustomerService {
@@ -261,6 +273,8 @@ export class CustomerService {
       isNew,
       loginUrl: loginResult.url,
       loginMethod: loginResult.method,
+      autoFormPassword: loginResult.method === "auto_form" ? (loginResult as { password: string }).password : undefined,
+      autoFormReturnTo: loginResult.method === "auto_form" ? loginResult.url : undefined,
     });
   }
 
@@ -354,7 +368,7 @@ export class CustomerService {
       }
     }
 
-    // Activation URL: all plans
+    // Activation URL: new / unactivated customers
     try {
       const data = await this.adminGql<{
         customerGenerateAccountActivationUrl: {
@@ -364,6 +378,13 @@ export class CustomerService {
       }>(apiUrl, token, GQL_ACTIVATION_URL, { customerId: customer.id });
 
       const result = data?.customerGenerateAccountActivationUrl;
+
+      // Already-enabled customer — fall through to temp-password auto-form
+      if (result?.userErrors?.some((e) => e.message.toLowerCase().includes("already enabled"))) {
+        console.info("[CustomerService] Customer already enabled, using auto-form login");
+        return this.buildAutoFormLogin(apiUrl, token, customer, returnTo);
+      }
+
       if (result?.userErrors?.length) {
         console.error("[CustomerService] Activation URL error:", result.userErrors[0]?.message);
         return null;
@@ -372,14 +393,52 @@ export class CustomerService {
       const activationUrl = result?.accountActivationUrl;
       if (!activationUrl) return null;
 
-      // Append return_to if non-default
       const url = new URL(activationUrl);
       if (returnTo && returnTo !== "/account" && !url.searchParams.has("return_to")) {
         url.searchParams.set("return_to", returnTo);
       }
-      return { url: url.toString(), method: "activation_url" };
+      return { url: url.toString(), method: "activation_url" as const };
     } catch (err) {
       console.error("[CustomerService] Activation URL generation failed:", err);
+      return null;
+    }
+  }
+
+  private async buildAutoFormLogin(
+    apiUrl: string,
+    token: string,
+    customer: ShopifyCustomerNode,
+    returnTo: string
+  ): Promise<{ url: string; method: "auto_form"; password: string } | null> {
+    if (!customer.email) {
+      console.error("[CustomerService] Auto-form login requires email; customer has none:", customer.id);
+      return null;
+    }
+
+    // Generate a cryptographically random temporary password
+    const { randomBytes } = await import("node:crypto");
+    const tempPassword = randomBytes(24).toString("base64url");
+
+    try {
+      const data = await this.adminGql<{
+        customerUpdate: { customer: { id: string } | null; userErrors: { message: string }[] };
+      }>(apiUrl, token, GQL_CUSTOMER_UPDATE_PASSWORD, {
+        input: {
+          id: customer.id,
+          password: tempPassword,
+          passwordConfirmation: tempPassword,
+        },
+      });
+
+      if (data?.customerUpdate?.userErrors?.length) {
+        console.error("[CustomerService] Set temp password error:", data.customerUpdate.userErrors[0]?.message);
+        return null;
+      }
+
+      console.info("[CustomerService] Temp password set for auto-form login:", customer.id);
+      return { url: returnTo, method: "auto_form" as const, password: tempPassword };
+    } catch (err) {
+      console.error("[CustomerService] buildAutoFormLogin failed:", err);
       return null;
     }
   }
