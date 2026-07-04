@@ -365,7 +365,9 @@ export class CustomerService {
           first_name: customer.firstName,
           last_name: customer.lastName,
           return_to: returnTo,
-          identifier: customer.id,
+          // Do NOT include identifier — Shopify stores it on first use and rejects
+          // any future token with a different identifier for the same email.
+          // Matching by email alone is safe here because we always verify via Admin API first.
         };
         return {
           url: buildMultipassUrl(shopDomain, generateMultipassToken(data, secret)),
