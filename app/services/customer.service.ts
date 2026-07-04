@@ -218,11 +218,17 @@ export class CustomerService {
     if (!customer && identity.email) customer = await this.adminFindByEmail(apiUrl, accessToken, identity.email);
 
     const isNew = !customer;
+    console.info(`[CustomerService] findOrCreateAndLogin — isNew=${isNew}, phone=${identity.phone}, shop=${shopDomain}`);
 
     if (!customer) {
       customer = await this.adminCreateCustomer(apiUrl, accessToken, identity);
-      if (!customer) return serviceFailure("Failed to create Shopify customer", 500);
+      if (!customer) {
+        console.error("[CustomerService] Could not find or create customer for", identity.phone ?? identity.email);
+        return serviceFailure("Failed to create Shopify customer", 500);
+      }
     }
+
+    console.info(`[CustomerService] Customer resolved: ${customer.id} state=${customer.state}`);
 
     // Sync to MongoDB (fire-and-forget)
     void this.syncToMongo(shopDomain, customer, identity).catch(() => {});
@@ -235,7 +241,10 @@ export class CustomerService {
       returnTo
     );
 
-    if (!loginResult) return serviceFailure("Failed to generate Shopify login URL", 500);
+    if (!loginResult) {
+      console.error("[CustomerService] buildLoginUrl returned null for customer", customer.id);
+      return serviceFailure("Failed to generate Shopify login URL", 500);
+    }
 
     void analyticsService.record(shopDomain, {
       ...(isNew ? { newCustomers: 1, registrationCount: 1 } : { returningCustomers: 1 }),
@@ -256,20 +265,29 @@ export class CustomerService {
 
   private async adminFindByPhone(apiUrl: string, token: string, phone: string): Promise<ShopifyCustomerNode | null> {
     try {
+      // Quote the phone number — '+' is a special char in Shopify's Lucene query syntax
       const data = await this.adminGql<{ customers: { edges: { node: ShopifyCustomerNode }[] } }>(
-        apiUrl, token, GQL_SEARCH_BY_PHONE, { query: `phone:${phone}` }
+        apiUrl, token, GQL_SEARCH_BY_PHONE, { query: `phone:"${phone}"` }
       );
-      return data?.customers?.edges?.[0]?.node ?? null;
-    } catch { return null; }
+      const node = data?.customers?.edges?.[0]?.node ?? null;
+      console.info(`[CustomerService] Phone search "${phone}": ${node ? `found ${node.id}` : "not found"}`);
+      return node;
+    } catch (err) {
+      console.error("[CustomerService] adminFindByPhone error:", err);
+      return null;
+    }
   }
 
   private async adminFindByEmail(apiUrl: string, token: string, email: string): Promise<ShopifyCustomerNode | null> {
     try {
       const data = await this.adminGql<{ customers: { edges: { node: ShopifyCustomerNode }[] } }>(
-        apiUrl, token, GQL_SEARCH_BY_EMAIL, { query: `email:${email}` }
+        apiUrl, token, GQL_SEARCH_BY_EMAIL, { query: `email:"${email}"` }
       );
       return data?.customers?.edges?.[0]?.node ?? null;
-    } catch { return null; }
+    } catch (err) {
+      console.error("[CustomerService] adminFindByEmail error:", err);
+      return null;
+    }
   }
 
   private async adminCreateCustomer(
@@ -283,15 +301,26 @@ export class CustomerService {
       if (identity.email) input.email = identity.email;
 
       const data = await this.adminGql<{
-        customerCreate: { customer: ShopifyCustomerNode; userErrors: { message: string }[] };
+        customerCreate: { customer: ShopifyCustomerNode; userErrors: { field: string[]; message: string }[] };
       }>(apiUrl, token, GQL_CUSTOMER_CREATE, { input });
 
-      if (data?.customerCreate?.userErrors?.length) {
-        console.error("[CustomerService] Create error:", data.customerCreate.userErrors[0]?.message);
+      const userErrors = data?.customerCreate?.userErrors ?? [];
+      if (userErrors.length) {
+        const errMsg = userErrors[0]?.message ?? "unknown";
+        console.error("[CustomerService] Create userErrors:", errMsg);
+
+        // Customer already exists (phone taken) — search again to retrieve them
+        if (errMsg.toLowerCase().includes("phone") && identity.phone) {
+          console.info("[CustomerService] Retrying phone search after duplicate error");
+          return this.adminFindByPhone(apiUrl, token, identity.phone);
+        }
         return null;
       }
       return data?.customerCreate?.customer ?? null;
-    } catch { return null; }
+    } catch (err) {
+      console.error("[CustomerService] adminCreateCustomer error:", err);
+      return null;
+    }
   }
 
   private async buildLoginUrl(
