@@ -334,6 +334,14 @@ export class CustomerService {
     encryptedMultipassSecret: string | undefined,
     returnTo: string
   ): Promise<{ url: string; method: "activation_url" | "multipass" } | null> {
+    // ENABLED customers on non-Plus: Shopify 2024+ removed all programmatic
+    // login APIs for this state. Skip straight to login-page redirect.
+    if (customer.state === "ENABLED" && !isPlus) {
+      console.info("[CustomerService] ENABLED customer on non-Plus — redirecting to /account/login");
+      const hint = customer.email ? `?email=${encodeURIComponent(customer.email)}` : "";
+      return { url: `/account/login${hint}`, method: "activation_url" as const };
+    }
+
     // Multipass: Plus stores with secret + customer has email
     if (isPlus && encryptedMultipassSecret && customer.email) {
       try {
