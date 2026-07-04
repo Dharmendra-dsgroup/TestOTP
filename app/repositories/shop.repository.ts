@@ -21,7 +21,7 @@ export class ShopRepository extends BaseRepository<IShopDocument> {
     await connectToDatabase();
     return this.model
       .findOne({ shopDomain: shopDomain.toLowerCase() })
-      .select("+accessToken")
+      .select("+accessToken +settings.multipassSecret")
       .exec();
   }
 
