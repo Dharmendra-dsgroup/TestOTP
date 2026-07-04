@@ -6,8 +6,9 @@
  *
  * Flow:
  *   1. Phone/Email input → POST /api/otp/generate
- *   2. OTP digit input   → POST /api/otp/verify  (receives loginUrl)
- *   3. Redirect to loginUrl → server-side customer login → /account
+ *   2. OTP digit input   → POST /api/otp/verify  (receives sessionToken)
+ *   3. Hidden form POST sessionToken to /api/auth/login (never in URL)
+ *   4. Server validates IP+UA binding → Multipass/activation → /account
  *
  * States: idle | loading | otp-entry | success | error
  */
@@ -456,7 +457,7 @@
     }).then(function (data) {
       self._clearTimers();
       self.state = STATE.SUCCESS;
-      self._renderSuccess(data.loginUrl);
+      self._renderSuccess(data.sessionToken);
     }).catch(function (err) {
       self.state = STATE.OTP_ENTRY;
       self._setLoading('otp-lp-verify-' + self.blockId, false, 'Verify');
@@ -552,18 +553,31 @@
 
   // ─── Render: Success Step ────────────────────────────────────────────────────
 
-  OTPWidget.prototype._renderSuccess = function (loginUrl) {
+  OTPWidget.prototype._renderSuccess = function (sessionToken) {
     this._content.innerHTML =
       '<div class="otp-lp-success-icon" aria-hidden="true">&#10003;</div>' +
       '<p class="otp-lp-success-title">Verified!</p>' +
       '<p class="otp-lp-success-msg">Logging you in&hellip;</p>';
 
-    if (loginUrl) {
-      window.location.href = loginUrl;
+    if (sessionToken) {
+      // POST the token — never put it in a URL where it appears in
+      // browser history, server logs, or can be intercepted as a query param.
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = this.cfg.apiBase + '/api/auth/login';
+      form.style.display = 'none';
+
+      var tokenInput = document.createElement('input');
+      tokenInput.type = 'hidden';
+      tokenInput.name = 'token';
+      tokenInput.value = sessionToken;
+      form.appendChild(tokenInput);
+
+      document.body.appendChild(form);
+      form.submit();
     } else {
-      // Fallback: redirect to redirect URL from config
-      var target = this.cfg.redirectUrl || '/account';
-      window.location.href = target;
+      // Fallback if no token (should not happen in normal flow)
+      window.location.href = this.cfg.redirectUrl || '/account';
     }
   };
 

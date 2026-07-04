@@ -1,65 +1,101 @@
 /**
- * Post-OTP login redirect handler.
+ * Post-OTP login handler.
  *
- * GET /api/auth/login?token={sessionToken}&shop={shop}
+ * POST /api/auth/login
  *
  * This is the server-side leg of the "OTP verified → logged into Shopify" flow.
  *
  * Flow:
  *   1. Widget verifies OTP → gets sessionToken from /api/otp/verify
- *   2. Widget does: window.location.href = "/apps/otp-login-pro/api/auth/login?token=..."
- *   3. Shopify App Proxy forwards the GET request here
+ *   2. Widget POSTs sessionToken to this endpoint (never in a URL)
+ *   3. Shopify App Proxy forwards the POST here
  *   4. We consume the one-time session token from Redis (60s TTL)
- *   5. Admin GraphQL: find-or-create Shopify customer by phone/email
- *   6. Generate account activation URL (or Multipass for Plus)
- *   7. Redirect customer to that URL → they land on Shopify account page, logged in
+ *   5. IP + User-Agent binding is validated against the verify request
+ *   6. Admin GraphQL: find-or-create Shopify customer by phone/email
+ *   7. Generate login URL (Multipass for Plus, activation URL for new customers,
+ *      or Customer Account API OAuth for existing non-Plus customers)
+ *   8. Redirect customer to that URL → they land on Shopify account page, logged in
  *
- * Security notes:
- * - Session token is one-time-use (GETDEL)
- * - Session token is tied to shop domain (cross-shop replay is rejected)
+ * Security:
+ * - Token is in POST body — never in URL, browser history, or server access logs
+ * - Token is one-time-use (GETDEL)
+ * - Token is bound to the verifying IP address and User-Agent
+ * - Token is tied to shop domain (cross-shop replay is rejected)
  * - Proxy signature is validated before anything else
  */
 
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import {
   validateProxySignature,
   extractShopFromProxy,
   isProxySignatureRequired,
 } from "~/lib/shopify/proxy-auth.server";
-import { consumeLoginSession } from "~/lib/auth/login-session.server";
+import {
+  consumeLoginSession,
+  extractClientIp,
+  hashUserAgent,
+} from "~/lib/auth/login-session.server";
 import { customerService } from "~/services/customer.service";
 import { shopRepository } from "~/repositories/shop.repository";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  // Validate App Proxy signature
+const SECURITY_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
+  "X-Content-Type-Options": "nosniff",
+};
+
+// ─── POST handler (primary) ───────────────────────────────────────────────────
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
   if (isProxySignatureRequired() && !validateProxySignature(request)) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token");
+  // Extract binding values from the incoming request
+  const incomingIp = extractClientIp(request);
+  const incomingUaHash = hashUserAgent(request.headers.get("user-agent") ?? "");
 
-  // Prefer `shop` from the proxy query param (injected by Shopify), fall back to explicit
+  // Read token from POST body
+  let token: string | null = null;
+  let bodyShop: string | null = null;
+  try {
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = await request.json() as Record<string, string>;
+      token = body.token ?? null;
+      bodyShop = body.shop ?? null;
+    } else {
+      const formData = await request.formData();
+      token = formData.get("token") as string | null;
+      bodyShop = formData.get("shop") as string | null;
+    }
+  } catch {
+    return redirect("/account?login_error=invalid_request", { headers: SECURITY_HEADERS });
+  }
+
   const shopDomain =
-    extractShopFromProxy(request) ??
-    url.searchParams.get("shop");
+    extractShopFromProxy(request) ?? bodyShop;
 
   if (!token || !shopDomain) {
-    return redirect("/account?login_error=invalid_token");
+    return redirect("/account?login_error=invalid_token", { headers: SECURITY_HEADERS });
   }
 
-  // 1. Consume one-time login session
-  const session = await consumeLoginSession(token, shopDomain);
+  // Consume one-time session with IP + UA binding validation
+  const session = await consumeLoginSession(token, shopDomain, incomingIp, incomingUaHash);
   if (!session) {
-    return redirect("/account?login_error=session_expired");
+    return redirect("/account?login_error=session_expired", { headers: SECURITY_HEADERS });
   }
 
-  // 2. Get the shop's redirect preference
+  // Get the shop's redirect preference
   const shopDoc = await shopRepository.findByDomain(shopDomain);
   const returnTo = shopDoc?.settings?.loginRedirectUrl ?? "/account";
 
-  // 3. Find/create Shopify customer and generate login URL
+  // Find/create Shopify customer and generate login URL
   const result = await customerService.findOrCreateAndLogin(
     shopDomain,
     {
@@ -72,11 +108,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (!result.success) {
     console.error("[LoginHandler] Customer login failed:", result.error);
-    return redirect(`/account?login_error=login_failed`);
+    return redirect("/account?login_error=login_failed", { headers: SECURITY_HEADERS });
   }
 
-  const { loginUrl } = result.data;
+  return redirect(result.data.loginUrl, { status: 302, headers: SECURITY_HEADERS });
+};
 
-  // 4. Redirect to Shopify's activation/multipass URL
-  return redirect(loginUrl, { status: 302 });
+// ─── GET handler — graceful rejection (token must never appear in a URL) ─────
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  // Reject GET requests. If the widget is using the old GET flow (cached version),
+  // send the customer to the account page with an informative error.
+  console.warn("[LoginHandler] GET request received — widget must POST the token, not redirect via URL");
+  return redirect("/account?login_error=session_expired");
 };

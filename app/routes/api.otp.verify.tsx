@@ -11,11 +11,11 @@
  *   code      — 4–8 digit OTP code entered by the customer
  *
  * Response 200 (verified):
- *   { verified: true, phone?, email?, channel, sessionToken, loginUrl }
+ *   { verified: true, phone?, email?, channel, sessionToken }
  *
- * The widget MUST redirect to `loginUrl` immediately after receiving this response.
- * loginUrl → /apps/otp-login-pro/api/auth/login?token={sessionToken}&shop={shop}
- * → server-side login redirect (activation URL or Multipass) → customer logged in.
+ *   The widget must POST sessionToken to /api/auth/login (NOT in a URL query param).
+ *   The sessionToken is bound to the request's IP and User-Agent — it cannot be
+ *   used from a different device or network.
  *
  * Response 422 (wrong code):
  *   { error, code: "OTP_INVALID", remainingAttempts? }
@@ -28,19 +28,31 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { otpService } from "~/services/otp.service";
 import { otpVerifySchema } from "~/validators/otp.validator";
-import { createLoginSession } from "~/lib/auth/login-session.server";
+import {
+  createLoginSession,
+  extractClientIp,
+  hashUserAgent,
+} from "~/lib/auth/login-session.server";
 import {
   validateProxySignature,
   extractShopFromProxy,
   isProxySignatureRequired,
 } from "~/lib/shopify/proxy-auth.server";
-import { env } from "~/config/env";
+import { RateLimiter } from "~/lib/rate-limit/rate-limiter.server";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Pragma": "no-cache",
 };
+
+// Rate limit: max 20 verify attempts per IP per 10 minutes
+// Prevents brute-forcing OTP codes across multiple requestIds
+const verifyIpLimiter = new RateLimiter();
+const VERIFY_WINDOW_SEC = 600; // 10 minutes
+const VERIFY_IP_LIMIT = 20;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -59,6 +71,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ error: "Unauthorized", code: "UNAUTHORIZED" }, {
       status: 401, headers: CORS_HEADERS,
     });
+  }
+
+  // Extract client metadata for session binding
+  const ipAddress = extractClientIp(request);
+  const userAgent = request.headers.get("user-agent") ?? "";
+  const uaHash = hashUserAgent(userAgent);
+
+  // Per-IP rate limit on the verify endpoint
+  const ipLimitResult = await verifyIpLimiter.check(
+    `verify:ip:${ipAddress}`,
+    VERIFY_IP_LIMIT,
+    VERIFY_WINDOW_SEC
+  );
+  if (!ipLimitResult.allowed) {
+    return json(
+      { error: "Too many verification attempts. Please try again later.", code: "RATE_LIMITED" },
+      { status: 429, headers: CORS_HEADERS }
+    );
   }
 
   let raw: Record<string, unknown>;
@@ -92,11 +122,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const { shop, requestId, code } = parsed.data;
 
-  const ipAddress =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    request.headers.get("x-real-ip") ||
-    "unknown";
-
   const result = await otpService.verify({
     shopDomain: shop,
     requestId,
@@ -112,23 +137,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  // Create a one-time login session (60s TTL) for the storefront → server redirect
+  // Create a one-time login session bound to this client's IP and User-Agent.
+  // The token is intentionally NOT embedded in any URL — the widget must POST it.
   const sessionToken = await createLoginSession({
     shopDomain: shop,
     phone: result.data.phone,
     email: result.data.email,
     channel: result.data.channel,
     verifiedAt: Date.now(),
+    ip: ipAddress,
+    uaHash,
   });
-
-  // Build the login URL that the theme widget will redirect to
-  const loginUrl = `https://${shop}/apps/otp-login-pro/api/auth/login?token=${sessionToken}&shop=${encodeURIComponent(shop)}`;
 
   return json(
     {
       ...result.data,
       sessionToken,
-      loginUrl,
+      // loginUrl is intentionally omitted — the widget must POST the token,
+      // never embed it in a URL where it appears in browser history or logs.
     },
     { status: 200, headers: CORS_HEADERS }
   );
