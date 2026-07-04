@@ -19,7 +19,7 @@ export class SmsProviderRepository extends BaseRepository<ISmsProviderDocument> 
   async findByShopWithCredentials(shopDomain: string): Promise<ISmsProviderDocument[]> {
     await connectToDatabase();
     return this.model
-      .find({ shopDomain: shopDomain.toLowerCase() })
+      .find({ shopDomain: shopDomain.toLowerCase(), isActive: true })
       .select("+credentialsEncrypted")
       .sort({ priority: 1 })
       .exec();
